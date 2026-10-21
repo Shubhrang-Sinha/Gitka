@@ -1,0 +1,30 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: devplatform-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:15
+    container_name: devplatform-forgejo
+    restart: unless-stopped
+    environment:
+      USER_UID: 1000
+      USER_GID: 1000
+    ports:
+      - "3001:3000"
+      - "2222:22"
+    volumes:
+      - forgejo_data:/data
+
+volumes:
+  db_data:
+  forgejo_data:
