@@ -44,9 +44,13 @@ All data stays on local Docker volumes.
 - http://localhost:3000/api/health/db checks Postgres and pgvector
 - http://localhost:3000/api/health/forgejo checks the Forgejo API connection
 
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md): how the app is structured and how to add features
+- [Contributing](CONTRIBUTING.md): git workflow, review rules and security rules
 ## Progress
 
-- [x] Increment 1 (in progress): Docker setup, Next.js app, migrations, authentication API
+- [x] Increment 1: Core platform (Docker, Next.js app, migrations, authentication, projects, repo viewing, member management)
 - [ ] Increment 2: AI PR review
 - [ ] Increment 3: Team chat
 - [ ] Increment 4: Codebase Q&A
