@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { pool } from "@/lib/db";
 import LogoutButton from "./logout-button";
 import CreateProjectForm from "./create-project-form";
+import Link from "next/link";
 
 async function ProjectsContent() {
   const user = await getCurrentUser();
@@ -35,11 +36,13 @@ async function ProjectsContent() {
       ) : (
         <ul className="space-y-2">
           {result.rows.map((project) => (
-            <li key={project.id} className="rounded border border-gray-400 p-3">
-              <div className="font-semibold">{project.name}</div>
-              <div className="text-sm text-gray-500">
-                {project.forgejo_repo} · {project.role}
-              </div>
+            <li key={project.id}>
+            <Link href={`/projects/${project.id}`} className="block rounded border border-gray-400 p-3 hover:bg-gray-800">
+            <div className="font-semibold">{project.name}</div>
+            <div className="text-sm text-gray-500">
+              {project.forgejo_repo} · {project.role}
+            </div>
+            </Link>
             </li>
           ))}
         </ul>

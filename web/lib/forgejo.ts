@@ -20,3 +20,19 @@ export async function forgejoFetch<T>(path: string): Promise<T> {
 
   return (await response.json()) as T;
 }
+export async function forgejoFetchText(path: string): Promise<string | null> {
+  if (!baseUrl || !token) {
+    throw new Error("FORGEJO_URL or FORGEJO_TOKEN is missing from .env.local");
+  }
+
+  const response = await fetch(`${baseUrl}/api/v1${path}`, {
+    headers: { Authorization: `token ${token}` },
+    cache: "no-store",
+  });
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Forgejo API returned ${response.status} for ${path}`);
+  }
+  return await response.text();
+}
