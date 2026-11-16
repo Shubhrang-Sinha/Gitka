@@ -13,7 +13,7 @@ Browser  ->  Next.js app (web/, port 3000)  ->  PostgreSQL + pgvector (port 5432
 ```
 
 - **Forgejo** hosts the git repositories. It has its own SQLite database and is only accessed through its REST API, never directly.
-- **PostgreSQL** stores everything the app owns: users, sessions, projects and membership. Later: chat and embeddings.
+- **PostgreSQL** stores everything the app owns: users, sessions, projects, membership, and team chat. Later: embeddings.
 - **Next.js** (App Router, TypeScript, Tailwind, run with Bun) is both the UI and the API.
 
 ## Folder map
@@ -37,6 +37,9 @@ devplatform/
       api/auth/...          register, login, logout, me
       api/projects/route.ts            Create a project
       api/projects/[id]/members/route.ts   Add a member
+      api/projects/[id]/channels/route.ts  List chat channels
+      api/projects/[id]/channels/[channelId]/messages/route.ts  Get history / post message
+      api/projects/[id]/channels/[channelId]/events/route.ts    SSE real-time stream
       api/health/...        db and forgejo connection checks
 ```
 
@@ -61,7 +64,14 @@ Tables created so far:
 | `projects` | id, name, forgejo_repo (`owner/name`, unique) |
 | `project_members` | project_id + user_id (composite key), role (`owner` or `member`) |
 | `sessions` | random id (stored in the cookie), user_id, expires_at |
+| `chat_channels` | id, project_id (references `projects`, cascades on delete), name, created_at; unique constraint on `(project_id, name)` |
+| `chat_messages` | id, channel_id (references `chat_channels`, cascades on delete), user_id (references `users`, cascades on delete), content (1 to 2000 chars), created_at |
 | `schema_migrations` | which migration files have been applied |
+
+Chat constraints and indexes:
+- `chat_channels` enforces unique channel names per project (`UNIQUE (project_id, name)`), which also indexes queries filtering by `project_id`.
+- `chat_messages` enforces content length via check constraint `CHECK (char_length(trim(content)) BETWEEN 1 AND 2000)`.
+- `chat_messages` uses a composite index `chat_messages_channel_created_idx` on `(channel_id, created_at, id)` to optimize chronological message retrieval and cursor-based pagination.
 
 Migration rules:
 - Files in `web/migrations/` run in filename order. Run them with `bun run migrate`.
@@ -85,6 +95,38 @@ A logged-in user may only touch projects they have a `project_members` row for.
 - The UI hides owner-only forms from members, but the API check is the real protection.
 
 Copy `app/projects/[id]/page.tsx` and `app/api/projects/[id]/members/route.ts` as examples of this pattern.
+
+## Team chat
+
+Project-scoped text chat channels with real-time delivery via Server-Sent Events (SSE).
+
+### Channels
+- Every project has chat channels. When a new project is created, a default `general` channel is automatically inserted in the same transaction.
+- Migration `020_create_chat_tables.sql` backfills a default `general` channel for any existing projects.
+- `chat_channels` enforces a unique constraint on `(project_id, name)`.
+
+### Routes
+- `GET /api/projects/[id]/channels`: lists all channels for a project ordered chronologically.
+- `GET /api/projects/[id]/channels/[channelId]/messages`: retrieves message history in chronological order.
+  - Returns sender `id` and `display_name` (sender email is never exposed).
+  - Defaults to the latest 50 messages, up to a maximum `limit` of 100.
+  - Supports stable cursor-based pagination using `(created_at, id)` via `?cursor=<base64url>` or `?before_created_at=...&before_id=...`. Invalid limit or cursor values return 400.
+- `POST /api/projects/[id]/channels/[channelId]/messages`: sends a text message.
+  - Validates that `content` trimmed length is 1 to 2,000 characters (returns 400 if invalid).
+  - Atomically inserts the message and triggers a PostgreSQL notification (`SELECT pg_notify(...)`) in a single transaction. If the transaction rolls back, no notification is sent.
+  - The notification payload contains strictly `channelId` and `messageId` (no user-generated text).
+- `GET /api/projects/[id]/channels/[channelId]/events`: real-time message delivery over Server-Sent Events (SSE).
+  - Uses headers `text/event-stream`, `Connection: keep-alive`, `Cache-Control: no-cache, no-transform`, and `X-Accel-Buffering: no`.
+  - Connects using a dedicated PostgreSQL client (`new Client(...)`) outside the shared pool to avoid exhausting the 5-connection pool.
+  - Runs `LISTEN chat_channel_<channelId>`. When a notification arrives, it queries PostgreSQL for the message and sender display name before enqueueing the event (`id: <message_id>\nevent: message\ndata: <json>`).
+  - Employs a serialized promise queue to guarantee strictly in-order message delivery, and buffers pre-controller events until the stream starts.
+  - Sends a `: keepalive\n\n` comment every 15 seconds.
+  - Cleans up client connections and listeners idempotently upon request abort, stream cancellation, or connection errors.
+
+### Authorization
+- Every chat endpoint calls `getCurrentUser()` and returns 401 if not logged in.
+- Queries `project_members` for the user. Non-members receive 404 (same as non-existent projects) to avoid leaking project existence.
+- Channel-scoped routes also verify that the channel belongs to the project (`chat_channels.project_id = id`), preventing cross-project IDOR attacks with a 404.
 
 ## Conventions
 
@@ -134,7 +176,7 @@ The Forgejo token is read-only (repository and user read). Features that write t
 
 - [x] Increment 1: Core platform (auth, projects, repo viewing, members)
 - [ ] Increment 2: AI PR review
-- [ ] Increment 3: Team chat
+- [ ] Increment 3: Team chat (backend complete)
 - [ ] Increment 4: Codebase Q&A
 - [ ] Increment 5: Dashboard and hardening
 
