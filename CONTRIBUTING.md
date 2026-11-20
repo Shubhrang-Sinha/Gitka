@@ -110,5 +110,5 @@ This repo may be public, so assume everything committed is visible to everyone.
 7. The AI bot is **advisory only**. It never merges, approves, or rejects PRs.
 
 ## Getting help
-
+   
 If something breaks, check "Known gotchas" in `docs/ARCHITECTURE.md` first. Then ask in the team chat with the **full error text** and what you ran, because screenshots cut off the important lines.
