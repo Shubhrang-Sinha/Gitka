@@ -16,7 +16,7 @@ async function main() {
   `);
 
   const applied = await pool.query<{ filename: string }>(
-    "SELECT filename FROM schema_migrations"
+    "SELECT filename FROM schema_migrations",
   );
   const appliedSet = new Set(applied.rows.map((row) => row.filename));
 
@@ -35,7 +35,10 @@ async function main() {
     try {
       await client.query("BEGIN");
       await client.query(sql);
-      await client.query("INSERT INTO schema_migrations (filename) VALUES ($1)", [file]);
+      await client.query(
+        "INSERT INTO schema_migrations (filename) VALUES ($1)",
+        [file],
+      );
       await client.query("COMMIT");
       console.log(`apply  ${file}`);
     } catch (error) {

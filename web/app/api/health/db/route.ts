@@ -4,7 +4,7 @@ export async function GET() {
   try {
     const result = await pool.query(
       `SELECT current_database() AS db,
-              (SELECT extversion FROM pg_extension WHERE extname = 'vector') AS pgvector`
+              (SELECT extversion FROM pg_extension WHERE extname = 'vector') AS pgvector`,
     );
     return NextResponse.json({ ok: true, ...result.rows[0] });
   } catch (error) {

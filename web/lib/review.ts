@@ -3,7 +3,12 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { DiffFile } from "./diff";
 
 export type Severity = "info" | "warning" | "critical";
-export type Finding = { path: string; line: number; severity: Severity; body: string };
+export type Finding = {
+  path: string;
+  line: number;
+  severity: Severity;
+  body: string;
+};
 export type ReviewResult = {
   summary: string;
   findings: Finding[];
@@ -13,7 +18,11 @@ export type ReviewResult = {
 };
 
 const MAX_COMMENTS = 10;
-const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
+const SEVERITY_ORDER: Record<Severity, number> = {
+  critical: 0,
+  warning: 1,
+  info: 2,
+};
 
 const SYSTEM_PROMPT = `You are a careful senior code reviewer.
 Review the pull request diff the user provides. Focus on real problems: bugs, security issues,
@@ -30,11 +39,15 @@ Reply with ONLY a JSON object, no markdown fences, in exactly this shape:
  "findings": [{"path": "file path", "line": 12, "severity": "info|warning|critical", "comment": "what is wrong and how to fix it"}]}
 If you find nothing worth reporting, return an empty findings array.`;
 
-function buildUserPrompt(title: string, description: string, files: DiffFile[]): string {
+function buildUserPrompt(
+  title: string,
+  description: string,
+  files: DiffFile[],
+): string {
   const reviewable = files.filter((f) => !f.skipped);
   const parts = reviewable.map(
     (f) =>
-      `### FILE: ${f.path} (${f.status})${f.truncated ? " [truncated]" : ""}\n${f.numbered}`
+      `### FILE: ${f.path} (${f.status})${f.truncated ? " [truncated]" : ""}\n${f.numbered}`,
   );
   return `PR title: ${title}\nPR description: ${description || "(none)"}\n\n<diff>\n${parts.join("\n\n")}\n</diff>`;
 }
@@ -42,12 +55,13 @@ function buildUserPrompt(title: string, description: string, files: DiffFile[]):
 export async function reviewDiff(
   title: string,
   description: string,
-  files: DiffFile[]
+  files: DiffFile[],
 ): Promise<ReviewResult> {
   const reviewable = files.filter((f) => !f.skipped);
   if (reviewable.length === 0) {
     return {
-      summary: "No reviewable files in this PR (only lockfiles, assets, or deletions).",
+      summary:
+        "No reviewable files in this PR (only lockfiles, assets, or deletions).",
       findings: [],
       model: "none",
       inputTokens: 0,
@@ -71,7 +85,9 @@ export async function reviewDiff(
   });
 
   if (!result.text.trim()) {
-    throw new Error("Model returned an empty response (try again; free models can be flaky)");
+    throw new Error(
+      "Model returned an empty response (try again; free models can be flaky)",
+    );
   }
   const parsed = parseModelJson(result.text);
 
@@ -85,7 +101,10 @@ export async function reviewDiff(
 }
 
 // Models sometimes wrap JSON in ```json fences or add chatter; extract the object.
-function parseModelJson(text: string): { summary?: unknown; findings?: unknown } {
+function parseModelJson(text: string): {
+  summary?: unknown;
+  findings?: unknown;
+} {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1) throw new Error("Model did not return JSON");
@@ -109,13 +128,19 @@ function validateFindings(raw: unknown, files: DiffFile[]): Finding[] {
     if (typeof path !== "string" || typeof comment !== "string") continue;
     const lineNum = Number(line);
     const file = byPath.get(path);
-    if (!file || !Number.isInteger(lineNum) || !file.validLines.has(lineNum)) continue;
+    if (!file || !Number.isInteger(lineNum) || !file.validLines.has(lineNum))
+      continue;
     const sev: Severity =
       severity === "critical" || severity === "warning" ? severity : "info";
     const key = `${path}:${lineNum}:${comment.slice(0, 40)}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ path, line: lineNum, severity: sev, body: comment.trim().slice(0, 2000) });
+    out.push({
+      path,
+      line: lineNum,
+      severity: sev,
+      body: comment.trim().slice(0, 2000),
+    });
   }
 
   return out
@@ -138,7 +163,8 @@ function fakeReview(files: DiffFile[]): ReviewResult {
     }
   }
   return {
-    summary: "[FAKE REVIEW] No model was called. This is canned output for testing.",
+    summary:
+      "[FAKE REVIEW] No model was called. This is canned output for testing.",
     findings,
     model: "fake",
     inputTokens: 0,

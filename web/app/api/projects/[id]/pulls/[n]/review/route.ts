@@ -14,9 +14,11 @@ async function loadProject(idStr: string, userId: number) {
      FROM projects p
      JOIN project_members m ON m.project_id = p.id
      WHERE p.id = $1 AND m.user_id = $2`,
-    [projectId, userId]
+    [projectId, userId],
   );
-  return (r.rows[0] as { id: number; forgejo_repo: string } | undefined) ?? null;
+  return (
+    (r.rows[0] as { id: number; forgejo_repo: string } | undefined) ?? null
+  );
 }
 
 function parsePrNumber(nStr: string): number | null {
@@ -26,22 +28,41 @@ function parsePrNumber(nStr: string): number | null {
 
 export async function POST(_req: Request, { params }: Ctx) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ ok: false, error: "Not logged in" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { ok: false, error: "Not logged in" },
+      { status: 401 },
+    );
 
   const { id, n } = await params;
   const project = await loadProject(id, user.id);
-  if (!project) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+  if (!project)
+    return NextResponse.json(
+      { ok: false, error: "Not found" },
+      { status: 404 },
+    );
 
   const prNumber = parsePrNumber(n);
   if (prNumber === null) {
-    return NextResponse.json({ ok: false, error: "Invalid pull request number" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Invalid pull request number" },
+      { status: 400 },
+    );
   }
 
   let start;
   try {
-    start = await startReview(project.id, project.forgejo_repo, prNumber, user.id);
+    start = await startReview(
+      project.id,
+      project.forgejo_repo,
+      prNumber,
+      user.id,
+    );
   } catch {
-    return NextResponse.json({ ok: false, error: "Pull request not found" }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, error: "Pull request not found" },
+      { status: 404 },
+    );
   }
 
   if (!start.started) {
@@ -59,21 +80,32 @@ export async function POST(_req: Request, { params }: Ctx) {
 
   return NextResponse.json(
     { ok: true, started: true, reviewId: start.reviewId, status: "pending" },
-    { status: 202 }
+    { status: 202 },
   );
 }
 
 export async function GET(_req: Request, { params }: Ctx) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ ok: false, error: "Not logged in" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { ok: false, error: "Not logged in" },
+      { status: 401 },
+    );
 
   const { id, n } = await params;
   const project = await loadProject(id, user.id);
-  if (!project) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+  if (!project)
+    return NextResponse.json(
+      { ok: false, error: "Not found" },
+      { status: 404 },
+    );
 
   const prNumber = parsePrNumber(n);
   if (prNumber === null) {
-    return NextResponse.json({ ok: false, error: "Invalid pull request number" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Invalid pull request number" },
+      { status: 400 },
+    );
   }
 
   const review = await pool.query(
@@ -82,7 +114,7 @@ export async function GET(_req: Request, { params }: Ctx) {
      WHERE project_id = $1 AND pr_number = $2
      ORDER BY created_at DESC
      LIMIT 1`,
-    [project.id, prNumber]
+    [project.id, prNumber],
   );
   if (review.rows.length === 0) {
     return NextResponse.json({ ok: true, review: null, comments: [] });
@@ -93,7 +125,11 @@ export async function GET(_req: Request, { params }: Ctx) {
      FROM review_comments
      WHERE review_id = $1
      ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, path, line`,
-    [review.rows[0].id]
+    [review.rows[0].id],
   );
-  return NextResponse.json({ ok: true, review: review.rows[0], comments: comments.rows });
+  return NextResponse.json({
+    ok: true,
+    review: review.rows[0],
+    comments: comments.rows,
+  });
 }

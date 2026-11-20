@@ -44,26 +44,27 @@ devplatform/
 
 ## Shared helpers (`web/lib`)
 
-| File | What it gives you |
-|---|---|
-| `db.ts` | `pool`, the shared Postgres connection pool. Use `pool.query(sql, [values])`. |
-| `forgejo.ts` | `forgejoFetch<T>(path)` for JSON and `forgejoFetchText(path)` for raw text. Both call `/api/v1` on Forgejo with the token. |
-| `password.ts` | `hashPassword` and `verifyPassword` (bcrypt). |
-| `session.ts` | `createSession`, `getCurrentUser()` (returns the user or `null`), `destroySession`. |
+| File          | What it gives you                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `db.ts`       | `pool`, the shared Postgres connection pool. Use `pool.query(sql, [values])`.                                              |
+| `forgejo.ts`  | `forgejoFetch<T>(path)` for JSON and `forgejoFetchText(path)` for raw text. Both call `/api/v1` on Forgejo with the token. |
+| `password.ts` | `hashPassword` and `verifyPassword` (bcrypt).                                                                              |
+| `session.ts`  | `createSession`, `getCurrentUser()` (returns the user or `null`), `destroySession`.                                        |
 
 ## Database
 
 Tables created so far:
 
-| Table | Purpose |
-|---|---|
-| `users` | id, email (unique, stored lowercase), password_hash, display_name |
-| `projects` | id, name, forgejo_repo (`owner/name`, unique) |
-| `project_members` | project_id + user_id (composite key), role (`owner` or `member`) |
-| `sessions` | random id (stored in the cookie), user_id, expires_at |
-| `schema_migrations` | which migration files have been applied |
+| Table               | Purpose                                                           |
+| ------------------- | ----------------------------------------------------------------- |
+| `users`             | id, email (unique, stored lowercase), password_hash, display_name |
+| `projects`          | id, name, forgejo_repo (`owner/name`, unique)                     |
+| `project_members`   | project_id + user_id (composite key), role (`owner` or `member`)  |
+| `sessions`          | random id (stored in the cookie), user_id, expires_at             |
+| `schema_migrations` | which migration files have been applied                           |
 
 Migration rules:
+
 - Files in `web/migrations/` run in filename order. Run them with `bun run migrate`.
 - **Never edit a migration that has already been applied.** Add a new file instead.
 - To avoid number clashes, each increment owns a range: Inc 2 = 010-019, Inc 3 = 020-029, Inc 4 = 030-039, Inc 5 = 040-049. Always use three digits (`010_`, not `10_`).

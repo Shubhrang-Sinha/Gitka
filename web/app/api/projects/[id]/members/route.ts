@@ -8,7 +8,7 @@ function fail(message: string, status: number) {
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getCurrentUser();
   if (!user) {
@@ -22,7 +22,7 @@ export async function POST(
 
   const membership = await pool.query(
     "SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2",
-    [id, user.id]
+    [id, user.id],
   );
   if (membership.rows.length === 0) {
     return fail("Project not found", 404);
@@ -45,7 +45,7 @@ export async function POST(
 
   const found = await pool.query(
     "SELECT id, email, display_name FROM users WHERE email = $1",
-    [email.trim().toLowerCase()]
+    [email.trim().toLowerCase()],
   );
   const newMember = found.rows[0];
   if (!newMember) {
@@ -56,7 +56,7 @@ export async function POST(
     `INSERT INTO project_members (project_id, user_id, role)
      VALUES ($1, $2, 'member')
      ON CONFLICT (project_id, user_id) DO NOTHING`,
-    [id, newMember.id]
+    [id, newMember.id],
   );
   if (inserted.rowCount === 0) {
     return fail("That user is already a member of this project", 409);

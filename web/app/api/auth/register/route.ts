@@ -14,7 +14,10 @@ export async function POST(request: Request) {
     return fail("Request body must be valid JSON", 400);
   }
 
-  const { email, password, displayName } = (body ?? {}) as Record<string, unknown>;
+  const { email, password, displayName } = (body ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   if (
     typeof email !== "string" ||
@@ -45,9 +48,12 @@ export async function POST(request: Request) {
       `INSERT INTO users (email, password_hash, display_name)
        VALUES ($1, $2, $3)
        RETURNING id, email, display_name`,
-      [normalizedEmail, passwordHash, name]
+      [normalizedEmail, passwordHash, name],
     );
-    return NextResponse.json({ ok: true, user: result.rows[0] }, { status: 201 });
+    return NextResponse.json(
+      { ok: true, user: result.rows[0] },
+      { status: 201 },
+    );
   } catch (error) {
     if ((error as { code?: string }).code === "23505") {
       return fail("An account with that email already exists", 409);

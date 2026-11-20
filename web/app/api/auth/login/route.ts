@@ -22,11 +22,13 @@ export async function POST(request: Request) {
 
   const result = await pool.query(
     "SELECT id, email, display_name, password_hash FROM users WHERE email = $1",
-    [email.trim().toLowerCase()]
+    [email.trim().toLowerCase()],
   );
   const user = result.rows[0];
 
-  const valid = user ? await verifyPassword(password, user.password_hash) : false;
+  const valid = user
+    ? await verifyPassword(password, user.password_hash)
+    : false;
   if (!user || !valid) {
     return fail("Invalid email or password", 401);
   }

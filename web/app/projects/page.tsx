@@ -18,7 +18,7 @@ async function ProjectsContent() {
        JOIN project_members pm ON pm.project_id = p.id
       WHERE pm.user_id = $1
       ORDER BY p.created_at DESC`,
-    [user.id]
+    [user.id],
   );
 
   return (
@@ -32,23 +32,27 @@ async function ProjectsContent() {
       </header>
 
       {result.rows.length === 0 ? (
-        <p className="text-gray-500">You are not a member of any projects yet.</p>
+        <p className="text-gray-500">
+          You are not a member of any projects yet.
+        </p>
       ) : (
         <ul className="space-y-2">
           {result.rows.map((project) => (
             <li key={project.id}>
-            <Link href={`/projects/${project.id}`} className="block rounded border border-gray-400 p-3 hover:bg-gray-800">
-            <div className="font-semibold">{project.name}</div>
-            <div className="text-sm text-gray-500">
-              {project.forgejo_repo} · {project.role}
-            </div>
-            </Link>
+              <Link
+                href={`/projects/${project.id}`}
+                className="block rounded border border-gray-400 p-3 hover:bg-gray-800"
+              >
+                <div className="font-semibold">{project.name}</div>
+                <div className="text-sm text-gray-500">
+                  {project.forgejo_repo} · {project.role}
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
       )}
       <CreateProjectForm />
-
     </main>
   );
 }

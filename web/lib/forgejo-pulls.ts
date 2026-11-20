@@ -11,7 +11,10 @@ export type PullRequest = {
   created_at: string;
 };
 
-export function listPulls(repo: string, state: "open" | "closed" | "all" = "open") {
+export function listPulls(
+  repo: string,
+  state: "open" | "closed" | "all" = "open",
+) {
   return forgejoFetch<PullRequest[]>(`/repos/${repo}/pulls?state=${state}`);
 }
 
@@ -19,10 +22,15 @@ export function getPull(repo: string, number: number) {
   return forgejoFetch<PullRequest>(`/repos/${repo}/pulls/${number}`);
 }
 
-export async function getPullDiff(repo: string, number: number): Promise<string> {
+export async function getPullDiff(
+  repo: string,
+  number: number,
+): Promise<string> {
   const diff = await forgejoFetchText(`/repos/${repo}/pulls/${number}.diff`);
   if (diff === null) {
-    throw new Error(`Could not fetch diff for ${repo} PR #${number} (not found?)`);
+    throw new Error(
+      `Could not fetch diff for ${repo} PR #${number} (not found?)`,
+    );
   }
   return diff;
 }
@@ -44,21 +52,27 @@ export async function forgejoPost<T>(path: string, body: unknown): Promise<T> {
     cache: "no-store",
   });
   if (!res.ok) {
-    throw new Error(`Forgejo POST ${path} failed: ${res.status} ${await res.text()}`);
+    throw new Error(
+      `Forgejo POST ${path} failed: ${res.status} ${await res.text()}`,
+    );
   }
   return (await res.json()) as T;
 }
 
 import type { Finding } from "./review";
 
-const SEVERITY_LABEL = { critical: "🔴 Critical", warning: "🟡 Warning", info: "🔵 Info" } as const;
+const SEVERITY_LABEL = {
+  critical: "🔴 Critical",
+  warning: "🟡 Warning",
+  info: "🔵 Info",
+} as const;
 
 export async function postReview(
   repo: string,
   number: number,
   headSha: string,
   summary: string,
-  findings: Finding[]
+  findings: Finding[],
 ) {
   return forgejoPost<{ id: number }>(`/repos/${repo}/pulls/${number}/reviews`, {
     body: `🤖 **AI review**\n\n${summary}`,

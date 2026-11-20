@@ -4,7 +4,9 @@ import { reviewDiff } from "../lib/review";
 
 const [repo, n] = process.argv.slice(2);
 if (!repo || !n) {
-  console.error("Usage: bun --env-file=.env.local scripts/try-review.ts owner/name PR_NUMBER");
+  console.error(
+    "Usage: bun --env-file=.env.local scripts/try-review.ts owner/name PR_NUMBER",
+  );
   process.exit(1);
 }
 const pr = await getPull(repo, Number(n));

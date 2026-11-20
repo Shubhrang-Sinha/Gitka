@@ -1,10 +1,10 @@
 export type DiffFile = {
   path: string;
   status: "added" | "modified" | "deleted" | "renamed";
-  numbered: string;        // diff text with new-file line numbers, sent to the model
+  numbered: string; // diff text with new-file line numbers, sent to the model
   validLines: Set<number>; // new-file line numbers that can receive a comment
   truncated: boolean;
-  skipped?: string;        // set when the file is excluded from review
+  skipped?: string; // set when the file is excluded from review
 };
 
 const SKIP_PATTERNS: RegExp[] = [
@@ -31,20 +31,28 @@ function parseChunk(chunk: string, maxFileChars: number): DiffFile {
   // Work out the path and status from the header.
   let status: DiffFile["status"] = "modified";
   if (header.some((l) => l.startsWith("new file mode"))) status = "added";
-  else if (header.some((l) => l.startsWith("deleted file mode"))) status = "deleted";
+  else if (header.some((l) => l.startsWith("deleted file mode")))
+    status = "deleted";
   else if (header.some((l) => l.startsWith("rename from"))) status = "renamed";
 
   const plus = header.find((l) => l.startsWith("+++ "));
   const minus = header.find((l) => l.startsWith("--- "));
   let path = "";
-  if (plus && plus !== "+++ /dev/null") path = plus.slice(4).replace(/^b\//, "");
+  if (plus && plus !== "+++ /dev/null")
+    path = plus.slice(4).replace(/^b\//, "");
   else if (minus) path = minus.slice(4).replace(/^a\//, "");
   else {
     const m = lines[0]?.match(/^a\/(.+) b\/(.+)$/);
-    path = m ? m[2] : lines[0] ?? "unknown";
+    path = m ? m[2] : (lines[0] ?? "unknown");
   }
 
-  const base = { path, status, numbered: "", validLines: new Set<number>(), truncated: false };
+  const base = {
+    path,
+    status,
+    numbered: "",
+    validLines: new Set<number>(),
+    truncated: false,
+  };
 
   const isBinary =
     chunk.includes("\nBinary files ") || chunk.includes("\nGIT binary patch");
