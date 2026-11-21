@@ -76,8 +76,7 @@ export async function POST(_req: Request, { params }: Ctx) {
   }
 
   // Respond now; the slow part continues after the response is sent.
-  after(() => runReview(start.reviewId, project.forgejo_repo, start.pr));
-
+  after(() => runReview(start.reviewId, start.token, project.forgejo_repo, start.pr));
   return NextResponse.json(
     { ok: true, started: true, reviewId: start.reviewId, status: "pending" },
     { status: 202 },

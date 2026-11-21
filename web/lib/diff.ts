@@ -38,9 +38,8 @@ function parseChunk(chunk: string, maxFileChars: number): DiffFile {
   const plus = header.find((l) => l.startsWith("+++ "));
   const minus = header.find((l) => l.startsWith("--- "));
   let path = "";
-  if (plus && plus !== "+++ /dev/null")
-    path = plus.slice(4).replace(/^b\//, "");
-  else if (minus) path = minus.slice(4).replace(/^a\//, "");
+    if (plus && plus !== "+++ /dev/null") path = headerPath(plus, "b/");
+  else if (minus) path = headerPath(minus, "a/");
   else {
     const m = lines[0]?.match(/^a\/(.+) b\/(.+)$/);
     path = m ? m[2] : (lines[0] ?? "unknown");
@@ -100,4 +99,58 @@ function parseChunk(chunk: string, maxFileChars: number): DiffFile {
   }
 
   return { path, status, numbered: out.join("\n"), validLines, truncated };
+}
+
+const GIT_ESCAPES: Record<string, number> = {
+  a: 7, b: 8, f: 12, n: 10, r: 13, t: 9, v: 11, '"': 34, "\\": 92,
+};
+
+// Decodes a C-style quoted path as git emits it, e.g. "b/caf\303\251.ts".
+function unquoteGitPath(quoted: string): string {
+  const chars = Array.from(quoted); // by code point, so emoji stay whole
+  const encoder = new TextEncoder();
+  const bytes: number[] = [];
+  let i = 1; // skip the opening quote
+  while (i < chars.length) {
+    const ch = chars[i];
+    if (ch === '"') break; // closing quote
+    if (ch === "\\" && i + 1 < chars.length) {
+      const next = chars[i + 1];
+      if (next >= "0" && next <= "7") {
+        // up to 3 octal digits = one raw byte
+        let oct = "";
+        let j = i + 1;
+        while (j < chars.length && oct.length < 3 && chars[j] >= "0" && chars[j] <= "7") {
+          oct += chars[j];
+          j++;
+        }
+        bytes.push(parseInt(oct, 8) & 0xff);
+        i = j;
+        continue;
+      }
+      if (next in GIT_ESCAPES) {
+        bytes.push(GIT_ESCAPES[next]);
+        i += 2;
+        continue;
+      }
+    }
+    bytes.push(...encoder.encode(ch));
+    i++;
+  }
+  // Collect raw bytes first, then decode, so multi-byte characters reassemble.
+  return new TextDecoder().decode(Uint8Array.from(bytes));
+}
+
+// Extracts the file path from a "--- a/..." or "+++ b/..." header line.
+function headerPath(line: string, prefix: "a/" | "b/"): string {
+  let raw = line.slice(4); // drop "--- " or "+++ "
+  if (raw.startsWith('"')) {
+    raw = unquoteGitPath(raw);
+  } else {
+    // Git appends a tab after names containing spaces. Cut at the tab; don't trim,
+    // because a filename can legitimately end in a space.
+    const tab = raw.indexOf("\t");
+    if (tab !== -1) raw = raw.slice(0, tab);
+  }
+  return raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
 }

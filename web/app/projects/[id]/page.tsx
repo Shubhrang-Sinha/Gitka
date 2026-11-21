@@ -78,6 +78,12 @@ async function RepoContent({ params }: { params: Promise<{ id: string }> }) {
           {project.forgejo_repo} · {project.role}
         </p>
       </header>
+            <Link
+        href={`/projects/${project.id}/pulls`}
+        className="inline-block rounded border border-gray-400 px-3 py-1 text-sm hover:bg-gray-800"
+      >
+        Pull requests
+      </Link>
       <section>
         <h2 className="mb-2 font-semibold">Members</h2>
         <ul className="rounded border border-gray-400">

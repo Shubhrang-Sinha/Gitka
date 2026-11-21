@@ -23,8 +23,7 @@ if (!proj.rows[0]) {
 const start = await startReview(proj.rows[0].id, repo, Number(n), null);
 if (start.started) {
   console.log(`Started review #${start.reviewId}...`);
-  await runReview(start.reviewId, repo, start.pr);
-} else {
+  await runReview(start.reviewId, start.token, repo, start.pr);} else {
   console.log(
     `Skipped: review #${start.reviewId} for this commit is already ${start.status}.`,
   );
