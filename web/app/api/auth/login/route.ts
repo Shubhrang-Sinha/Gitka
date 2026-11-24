@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
+import { rateLimit } from "@/lib/rate-limit";
 import { createSession } from "@/lib/session";
 
 function fail(message: string, status: number) {
@@ -20,9 +21,19 @@ export async function POST(request: Request) {
     return fail("email and password are required", 400);
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || normalizedEmail.includes("\0")) {
+    return fail("Invalid email or password", 401);
+  }
+
+  const serverLimited = await rateLimit("login-total", "", 120, 60);
+  if (serverLimited) return serverLimited;
+  const limited = await rateLimit("login", normalizedEmail, 10, 60);
+  if (limited) return limited;
+
   const result = await pool.query(
     "SELECT id, email, display_name, password_hash FROM users WHERE email = $1",
-    [email.trim().toLowerCase()],
+    [normalizedEmail],
   );
   const user = result.rows[0];
 

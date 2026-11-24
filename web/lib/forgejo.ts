@@ -1,7 +1,7 @@
 const baseUrl = process.env.FORGEJO_URL;
 const token = process.env.FORGEJO_TOKEN;
 
-export async function forgejoFetch<T>(path: string): Promise<T> {
+export async function forgejoFetch<T>(path: string, signal?: AbortSignal): Promise<T> {
   if (!baseUrl || !token) {
     throw new Error("FORGEJO_URL or FORGEJO_TOKEN is missing from .env.local");
   }
@@ -12,6 +12,7 @@ export async function forgejoFetch<T>(path: string): Promise<T> {
       Accept: "application/json",
     },
     cache: "no-store",
+    signal,
   });
 
   if (!response.ok) {

@@ -1,11 +1,16 @@
 import { pool } from "../lib/db";
-import { hashPassword } from "../lib/password";
+import { hashPassword, MAX_PASSWORD_BYTES } from "../lib/password";
 
 const [email, newPassword] = process.argv.slice(2);
 if (!email || !newPassword) {
   console.error(
     "Usage: bun --env-file=.env.local scripts/reset-password.ts EMAIL NEW_PASSWORD",
   );
+  process.exit(1);
+}
+
+if (Buffer.byteLength(newPassword, "utf8") > MAX_PASSWORD_BYTES) {
+  console.error(`Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes`);
   process.exit(1);
 }
 

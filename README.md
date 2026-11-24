@@ -5,10 +5,10 @@ Forgejo + Next.js + PostgreSQL/pgvector, with AI-assisted PR review, team chat a
 ## Architecture
 
 - **Forgejo** hosts the git repositories (its own SQLite database).
-- **PostgreSQL + pgvector** stores users, projects, sessions, and later chat and embeddings.
+- **PostgreSQL + pgvector** stores users, projects, sessions, chat messages, reviews, and the codebase index.
 - **Next.js app** (`web/`) is the UI and API layer. It talks to Postgres directly and to Forgejo through its REST API.
 
-All data stays on local Docker volumes.
+Forgejo and PostgreSQL store their data on local Docker volumes. When OpenRouter is configured, AI features send relevant repository content to the provider.
 
 ## Prerequisites
 
@@ -39,6 +39,10 @@ All data stays on local Docker volumes.
    ```
 6. The app runs at http://localhost:3000.
 
+## Codebase Q&A
+
+Open a project and select **Codebase Q&A**. A project owner can build or refresh the index for the default branch. Members can search the indexed snapshot and see matching source excerpts. Set `OPENROUTER_API_KEY` and `LLM_MODEL` in `web/.env.local` to generate answers and optionally set `QA_EMBEDDING_MODEL` to enable semantic retrieval. Refresh the index after repository changes or changes to the embedding model.
+
 ## Health checks
 
 - http://localhost:3000/api/health/db checks Postgres and pgvector
@@ -52,7 +56,7 @@ All data stays on local Docker volumes.
 ## Progress
 
 - [x] Increment 1: Core platform (Docker, Next.js app, migrations, authentication, projects, repo viewing, member management)
-- [ ] Increment 2: AI PR review
-- [ ] Increment 3: Team chat
-- [ ] Increment 4: Codebase Q&A
-- [ ] Increment 5: Dashboard and hardening
+- [x] Increment 2: AI PR review
+- [x] Increment 3: Team chat
+- [x] Increment 4: Codebase Q&A
+- [x] Increment 5: Dashboard and hardening

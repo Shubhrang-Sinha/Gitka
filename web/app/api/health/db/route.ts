@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { connection, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+
 export async function GET() {
+  await connection();
   try {
     const result = await pool.query(
       `SELECT current_database() AS db,
@@ -8,7 +10,7 @@ export async function GET() {
     );
     return NextResponse.json({ ok: true, ...result.rows[0] });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    console.error("PostgreSQL health check failed:", error);
+    return NextResponse.json({ ok: false }, { status: 503 });
   }
 }

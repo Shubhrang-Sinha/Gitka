@@ -1,6 +1,6 @@
 # Architecture
 
-How the app is built today (end of Increment 1). Read this before adding a feature.
+Read this before adding a feature.
 
 ## Overview
 
@@ -17,7 +17,7 @@ Next.js app  ->  OpenRouter API (AI model for PR review)
 ```
 
 - **Forgejo** hosts the git repositories. It has its own SQLite database and is only accessed through its REST API, never directly.
-- **PostgreSQL** stores everything the app owns: users, sessions, projects and membership. Later: chat and embeddings.
+- **PostgreSQL** stores users, sessions, projects, membership, reviews, chat, and indexed source excerpts.
 - **Next.js** (App Router, TypeScript, Tailwind, run with Bun) is both the UI and the API.
 
 ## Folder map
@@ -102,6 +102,38 @@ A logged-in user may only touch projects they have a `project_members` row for.
 
 Copy `app/projects/[id]/page.tsx` and `app/api/projects/[id]/members/route.ts` as examples of this pattern.
 
+## Team chat
+
+Project members can read and send messages at `/projects/[id]/chat`. The client polls
+`GET /api/projects/[id]/messages` for the latest 100 messages and sends messages with
+`POST` to the same route. Both methods check membership. Messages are stored in
+`chat_messages` and deleted with their project or author.
+
+## Codebase Q&A
+
+The `/projects/[id]/qa` page uses `GET /api/projects/[id]/qa` for index status and
+`POST` to ask a question. Both require project membership. Owners can refresh the
+index with `POST /api/projects/[id]/qa/index`. Indexing reads Forgejo source at a
+specific default-branch commit, then stores searchable excerpts with file paths
+and line ranges. Each snapshot covers up to 200 eligible text files and 800
+excerpts. Refreshing replaces the old snapshot atomically. Answers use up to
+six retrieved excerpts and include source references.
+PostgreSQL keyword search works without a provider key. To add semantic search,
+configure `QA_EMBEDDING_MODEL` and rebuild the index. With OpenRouter enabled,
+configure projects for which sending source excerpts to the provider is permitted.
+
+## Dashboard and request limits
+
+The `/projects` dashboard lists only projects the signed-in user belongs to. It
+shows the latest stored AI review activity and links to the project tools.
+`web/lib/rate-limit.ts` uses PostgreSQL counters shared across app processes.
+Login allows 10 attempts per minute per normalized email and 120 across the
+instance. Registration allows 30 attempts per minute across the instance. Chat
+allows 30 sends per minute per user. Q&A accepts 10 questions per minute per user
+and three refresh requests per minute per project. Rate-limited responses include
+`Retry-After`.
+New and reset passwords are limited to 72 UTF-8 bytes for bcrypt compatibility.
+
 ## AI PR review (Increment 2)
 
 Flow: PR opened or updated -> `startReview` -> `runReview` -> comments posted to Forgejo.
@@ -142,13 +174,11 @@ Rules:
 DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@localhost:5432/devplatform
 FORGEJO_URL=http://localhost:3001
 FORGEJO_TOKEN=your_forgejo_token_here
-DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@localhost:5432/devplatform
-FORGEJO_URL=http://localhost:3001
-FORGEJO_TOKEN=your_forgejo_token_here
 FORGEJO_WRITE_TOKEN=your_forgejo_write_token_here
 FORGEJO_WEBHOOK_SECRET=your_random_secret_here
 OPENROUTER_API_KEY=your_openrouter_key_here
 LLM_MODEL=openrouter/free
+QA_EMBEDDING_MODEL=
 ```
 
 The Forgejo token is read-only (repository and user read). Features that write to Forgejo, like posting PR comments, need their own token with write permission.
@@ -188,9 +218,7 @@ The Forgejo token is read-only (repository and user read). Features that write t
 ## Status
 
 - [x] Increment 1: Core platform (auth, projects, repo viewing, members)
-- [ ] Increment 2: AI PR review
-- [ ] Increment 3: Team chat
-- [ ] Increment 4: Codebase Q&A
-- [ ] Increment 5: Dashboard and hardening
-
-Known gaps: passwords are not yet capped at 72 bytes (bcrypt limit), and there is no rate limiting yet (Increment 5).
+- [x] Increment 2: AI PR review
+- [x] Increment 3: Team chat
+- [x] Increment 4: Codebase Q&A
+- [x] Increment 5: Dashboard and hardening
