@@ -1,4 +1,4 @@
-CREATE TABLE chat_messages (
+CREATE TABLE IF NOT EXISTS project_chat_messages (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -6,4 +6,4 @@ CREATE TABLE chat_messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX chat_messages_project_id_id_idx ON chat_messages(project_id, id DESC);
+CREATE INDEX IF NOT EXISTS project_chat_messages_project_id_id_idx ON project_chat_messages(project_id, id DESC);

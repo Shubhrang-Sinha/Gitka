@@ -59,6 +59,11 @@ export async function POST(request: Request) {
        VALUES ($1, $2, 'owner')`,
       [project.rows[0].id, user.id],
     );
+    await client.query(
+      `INSERT INTO chat_channels (project_id, name)
+      VALUES ($1, 'general')`,
+      [project.rows[0].id]
+    );
     await client.query("COMMIT");
     return NextResponse.json(
       { ok: true, project: project.rows[0] },

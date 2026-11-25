@@ -147,9 +147,9 @@ async function seedProject(client: PoolClient, credentials: Credentials, reposit
     [member, "I’ll check the existing schedule first. Codebase Q&A can point me to the default interval."],
   ]) {
     await client.query(
-      `INSERT INTO chat_messages (project_id, user_id, body)
+      `INSERT INTO project_chat_messages (project_id, user_id, body)
        SELECT $1, $2, $3 WHERE NOT EXISTS (
-         SELECT 1 FROM chat_messages WHERE project_id = $1 AND user_id = $2 AND body = $3
+         SELECT 1 FROM project_chat_messages WHERE project_id = $1 AND user_id = $2 AND body = $3
        )`,
       [projectId, user, message],
     );

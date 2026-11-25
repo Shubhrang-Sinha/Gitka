@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: Context) {
   if (auth.error) return auth.error;
   const result = await pool.query(
     `SELECT m.id, m.body, m.created_at, u.display_name
-       FROM chat_messages m JOIN users u ON u.id = m.user_id
+       FROM project_chat_messages m JOIN users u ON u.id = m.user_id
       WHERE m.project_id = $1 ORDER BY m.id DESC LIMIT 100`,
     [id],
   );
@@ -51,7 +51,7 @@ export async function POST(request: Request, { params }: Context) {
   const limited = await rateLimit("chat", String(auth.user.id), 30, 60);
   if (limited) return limited;
   await pool.query(
-    "INSERT INTO chat_messages (project_id, user_id, body) VALUES ($1, $2, $3)",
+    "INSERT INTO project_chat_messages (project_id, user_id, body) VALUES ($1, $2, $3)",
     [id, auth.user.id, body],
   );
   return Response.json({ ok: true }, { status: 201 });
