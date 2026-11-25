@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function CreateProjectForm() {
+export default function CreateProjectForm({ forgejoUrl }: { forgejoUrl: string | null }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [forgejoRepo, setForgejoRepo] = useState("");
@@ -40,28 +40,36 @@ export default function CreateProjectForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded border border-gray-400 p-4"
+      className="space-y-3 border-t border-line pt-5"
     >
-      <h2 className="font-semibold">New project</h2>
+      <h2 className="font-semibold">Link a repository</h2>
+      <label htmlFor="project-name" className="block text-sm font-medium">Project name</label>
       <input
-        className="w-full rounded border border-gray-400 bg-transparent p-2"
-        placeholder="Project name"
+        id="project-name"
+        className="field"
         value={name}
         onChange={(e) => setName(e.target.value)}
         required
       />
+      <label htmlFor="forgejo-repo" className="block text-sm font-medium">Forgejo repository</label>
       <input
-        className="w-full rounded border border-gray-400 bg-transparent p-2"
-        placeholder="Forgejo repo (owner/name)"
+        id="forgejo-repo"
+        className="field"
+        placeholder="owner/name"
+        aria-describedby="forgejo-repo-help"
         value={forgejoRepo}
         onChange={(e) => setForgejoRepo(e.target.value)}
         required
       />
-      {error && <p className="text-red-500">{error}</p>}
+      <p id="forgejo-repo-help" className="text-sm text-muted">
+        Enter the owner and name of an existing repository.
+        {forgejoUrl && <> <a href={forgejoUrl} className="text-accent underline underline-offset-4">Find it in Forgejo</a>.</>}
+      </p>
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <button
         type="submit"
         disabled={loading}
-        className="rounded bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50"
+        className="button"
       >
         {loading ? "Creating..." : "Create project"}
       </button>

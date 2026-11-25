@@ -3,8 +3,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { ForgejoRequestError } from "@/lib/forgejo";
+import { forgejoRepoUrl } from "@/lib/forgejo-links";
 import { getPull, type PullRequest } from "@/lib/forgejo-pulls";
+import DiscussionPanel from "./discussion-panel";
 import ReviewPanel from "./review-panel";
+
+export const metadata = { title: "Pull request" };
 
 async function PullContent({
   params,
@@ -38,58 +43,78 @@ async function PullContent({
   let pr: PullRequest | null = null;
   let loadError: string | null = null;
   try {
-    pr = await getPull(project.forgejo_repo, prNumber);
+    pr = await getPull(project.forgejo_repo, prNumber, AbortSignal.timeout(8000));
   } catch (error) {
+    if (error instanceof ForgejoRequestError && error.status === 404) {
+      notFound();
+    }
     console.error("Forgejo PR load failed:", error);
-    loadError = "Could not load this pull request from Forgejo.";
+    loadError = "Could not load this pull request from Forgejo. Reload the page to try again.";
   }
 
-  const forgejoLink = `${process.env.FORGEJO_URL}/${project.forgejo_repo}/pulls/${prNumber}`;
+  const forgejoLink = forgejoRepoUrl(project.forgejo_repo, "pulls", prNumber);
+  const repoUrl = pr?.head.repo
+    ? forgejoRepoUrl(pr.head.repo.full_name)
+    : pr?.head.repo === null ? null : forgejoRepoUrl(project.forgejo_repo);
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-8">
-      <Link href={`/projects/${project.id}/pulls`} className="text-sm underline">
-        ← Pull requests
+    <div className="mx-auto w-full max-w-5xl space-y-6 px-5 py-7 sm:px-8">
+      <Link href={`/projects/${project.id}/pulls`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline underline-offset-4">
+        All pull requests
       </Link>
 
       {loadError || !pr ? (
-        <p className="text-red-500">{loadError ?? "Pull request not found."}</p>
+        <section className="space-y-3 rounded-xl border border-line bg-panel p-5">
+          <h1 className="text-xl font-semibold">Pull request #{prNumber}</h1>
+          <p role="alert" className="text-danger">{loadError ?? "Pull request not found."}</p>
+          {forgejoLink && <a href={forgejoLink} className="button">View in Forgejo</a>}
+        </section>
       ) : (
         <>
-          <header className="space-y-1">
-            <h1 className="text-2xl font-bold">
-              #{pr.number} {pr.title}
-            </h1>
-            <p className="text-sm text-gray-500">
-              {pr.user.login} · {pr.head.ref} → {pr.base.ref} · {pr.state} ·{" "}
-              {new Date(pr.created_at).toLocaleDateString()}
-            </p>
-            <a
-              href={forgejoLink}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm underline"
-            >
-              View in Forgejo
-            </a>
+          <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-5">
+            <div className="min-w-0 space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight wrap-anywhere sm:text-3xl">
+                <span className="text-muted">#{pr.number}</span> {pr.title}
+              </h1>
+              <p className="wrap-anywhere text-sm text-muted">
+                {pr.user.login} · {pr.head.ref} → {pr.base.ref} · {pr.state} ·{" "}
+                {new Date(pr.created_at).toLocaleDateString()}
+              </p>
+            </div>
+            {forgejoLink && <a href={forgejoLink} className="button">View in Forgejo</a>}
           </header>
+
+          <nav aria-label="On this pull request" className="flex flex-wrap gap-2">
+            <a href="#ai-review" className="button">AI review</a>
+            <a href="#discussion" className="button">Discussion</a>
+          </nav>
+
+          <ReviewPanel
+            key={`${project.id}/${prNumber}/${pr.head.sha}`}
+            projectId={project.id}
+            prNumber={prNumber}
+            headSha={pr.head.sha}
+            repoUrl={repoUrl}
+          />
 
           {pr.body && (
             <section>
-              <h2 className="mb-2 font-semibold">Description</h2>
-              <pre className="whitespace-pre-wrap rounded border border-gray-400 p-3 text-sm">
+              <h2 className="mb-2 text-lg font-semibold">Description</h2>
+              <p className="max-w-[72ch] whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed">
                 {pr.body}
-              </pre>
+              </p>
             </section>
           )}
 
-          <section>
-            <h2 className="mb-2 font-semibold">AI review</h2>
-            <ReviewPanel projectId={project.id} prNumber={prNumber} />
-          </section>
+          <DiscussionPanel
+            key={`${project.id}/${prNumber}`}
+            projectId={project.id}
+            prNumber={prNumber}
+            forgejoPullUrl={forgejoLink}
+          />
         </>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -99,7 +124,7 @@ export default function PullPage({
   params: Promise<{ id: string; n: string }>;
 }) {
   return (
-    <Suspense fallback={<p className="p-8">Loading...</p>}>
+    <Suspense fallback={<p role="status" className="p-8 text-muted">Loading pull request…</p>}>
       <PullContent params={params} />
     </Suspense>
   );

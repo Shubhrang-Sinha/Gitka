@@ -7,13 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate": "bun --env-file=.env.local scripts/migrate.ts"
+    "migrate": "bun --env-file=.env.local scripts/migrate.ts",
+    "seed:demo": "bun --env-file=.env.local scripts/seed-demo.ts"
   },
   "dependencies": {
     "@openrouter/ai-sdk-provider": "^3.1.0",
     "ai": "^7.0.177",
     "bcryptjs": "^3.0.3",
-    "next": "16.4.2",
+    "next": "16.4.5",
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -26,7 +27,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

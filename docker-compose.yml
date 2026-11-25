@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
 
@@ -19,12 +19,23 @@ services:
     environment:
       USER_UID: 1000
       USER_GID: 1000
+      FORGEJO__database__DB_TYPE: sqlite3
+      FORGEJO__server__ROOT_URL: http://localhost:3001/
+      FORGEJO__security__INSTALL_LOCK: "true"
       FORGEJO__webhook__ALLOWED_HOST_LIST: private
+      FORGEJO__ui__DEFAULT_THEME: earl-grey
+      FORGEJO__ui__THEMES: earl-grey,forgejo-auto,forgejo-light,forgejo-dark
     ports:
       - "3001:3000"
       - "2222:22"
     volumes:
       - forgejo_data:/data
+      - ./forgejo/earl-grey/theme-earl-grey.css:/data/gitea/public/assets/css/theme-earl-grey.css:ro
+      - ./forgejo/branding/gitka.svg:/data/gitea/public/assets/img/logo.svg:ro
+      - ./forgejo/branding/gitka.svg:/data/gitea/public/assets/img/favicon.svg:ro
+      - ./web/public/GitkaLogo.png:/data/gitea/public/assets/img/logo.png:ro
+      - ./web/public/GitkaLogo.png:/data/gitea/public/assets/img/favicon.png:ro
+      - ./web/public/GitkaLogo.png:/data/gitea/public/assets/img/apple-touch-icon.png:ro
 
 volumes:
   db_data:

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { forgejoFetch } from "@/lib/forgejo";
+import { ForgejoRequestError, forgejoFetch } from "@/lib/forgejo";
 import { getCurrentUser } from "@/lib/session";
 
 function fail(message: string, status: number) {
@@ -37,8 +37,12 @@ export async function POST(request: Request) {
 
   try {
     await forgejoFetch(`/repos/${repo}`);
-  } catch {
-    return fail("That repository was not found in Forgejo", 404);
+  } catch (error) {
+    if (error instanceof ForgejoRequestError && error.status === 404) {
+      return fail("That repository was not found in Forgejo", 404);
+    }
+    console.error("Could not verify repository in Forgejo:", error);
+    return fail("Could not connect to Forgejo. Check the server configuration and try again.", 503);
   }
 
   const client = await pool.connect();

@@ -1,13 +1,13 @@
 # Architecture
 
-How the app is built today (end of Increment 1). Read this before adding a feature.
+Read this before adding a feature.
 
 ## Overview
 
 Three pieces, all running locally in Docker or on your machine:
 
 ```
-Browser  ->  Next.js app (web/, port 3000)  ->  PostgreSQL + pgvector (port 5432)
+Browser  ->  Next.js app (web/, port 3000)  ->  PostgreSQL + pgvector (host port 5433)
                        |  ^
                        |  |  webhooks (signed)
                        v  |
@@ -17,7 +17,7 @@ Next.js app  ->  OpenRouter API (AI model for PR review)
 ```
 
 - **Forgejo** hosts the git repositories. It has its own SQLite database and is only accessed through its REST API, never directly.
-- **PostgreSQL** stores everything the app owns: users, sessions, projects, membership, and team chat. Later: embeddings.
+- **PostgreSQL** stores users, sessions, projects, membership, reviews, chat, and indexed source excerpts.
 - **Next.js** (App Router, TypeScript, Tailwind, run with Bun) is both the UI and the API.
 
 ## Folder map
@@ -110,7 +110,58 @@ A logged-in user may only touch projects they have a `project_members` row for.
 
 Copy `app/projects/[id]/page.tsx` and `app/api/projects/[id]/members/route.ts` as examples of this pattern.
 
+## Pull request discussion
+
+Project routes share a header with the active tool and a link to the same
+repository in Forgejo. `web/lib/forgejo-links.ts` builds browser-facing
+repository, PR, and source URLs. Set `FORGEJO_PUBLIC_URL` if the browser uses
+a different Forgejo address from the server-side `FORGEJO_URL`. A browser
+session also needs permission to open a private repository in Forgejo.
+
+Forgejo owns pull requests and their published discussion. Gitka reads the
+current comments through `GET /api/projects/[id]/pulls/[n]/comments` and submits
+new comments through `POST` on the same route. Both operations check Gitka
+project membership. Refreshing the discussion reads Forgejo again. Gitka
+stores no copy of the comments.
+
+Comments submitted from Gitka appear under the account associated with
+`FORGEJO_WRITE_TOKEN`. The Gitka UI discloses this attribution. AI review
+execution and its status remain in PostgreSQL, and published AI reviews
+remain visible in Forgejo.
+
 ## Team chat
+
+Project members can read and send messages at `/projects/[id]/chat`. The client polls
+`GET /api/projects/[id]/messages` for the latest 100 messages and sends messages with
+`POST` to the same route. Both methods check membership. Messages are stored in
+`project_chat_messages` and deleted with their project or author.
+
+## Codebase Q&A
+
+The `/projects/[id]/qa` page uses `GET /api/projects/[id]/qa` for index status and
+`POST` to ask a question. Both require project membership. Owners can refresh the
+index with `POST /api/projects/[id]/qa/index`. Indexing reads Forgejo source at a
+specific default-branch commit, then stores searchable excerpts with file paths
+and line ranges. Each snapshot covers up to 200 eligible text files and 800
+excerpts. Refreshing replaces the old snapshot atomically. Answers use up to
+six retrieved excerpts and include source references.
+PostgreSQL keyword search works without a provider key. To add semantic search,
+configure `QA_EMBEDDING_MODEL` and rebuild the index. With OpenRouter enabled,
+configure projects for which sending source excerpts to the provider is permitted.
+
+## Dashboard and request limits
+
+The `/projects` dashboard lists only projects the signed-in user belongs to. It
+shows the latest stored AI review activity and links to the project tools.
+`web/lib/rate-limit.ts` uses PostgreSQL counters shared across app processes.
+Login allows 10 attempts per minute per normalized email and 120 across the
+instance. Registration allows 30 attempts per minute across the instance. Chat
+allows 30 sends per minute per user. Q&A accepts 10 questions per minute per user
+and three refresh requests per minute per project. Rate-limited responses include
+`Retry-After`.
+New and reset passwords are limited to 72 UTF-8 bytes for bcrypt compatibility.
+
+## Channel chat API
 
 Project-scoped text chat channels with real-time delivery via Server-Sent Events (SSE).
 
@@ -142,6 +193,8 @@ Project-scoped text chat channels with real-time delivery via Server-Sent Events
 - Queries `project_members` for the user. Non-members receive 404 (same as non-existent projects) to avoid leaking project existence.
 - Channel-scoped routes also verify that the channel belongs to the project (`chat_channels.project_id = id`), preventing cross-project IDOR attacks with a 404.
 
+## AI PR review (Increment 2)
+
 ## Conventions
 
 - **Always use SQL placeholders** (`$1, $2`) and never build SQL by string concatenation.
@@ -155,16 +208,16 @@ Project-scoped text chat channels with real-time delivery via Server-Sent Events
 ## Environment variables (`web/.env.local`)
 
 ```
-DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@localhost:5432/devplatform
+DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@127.0.0.1:5433/devplatform
 FORGEJO_URL=http://localhost:3001
-FORGEJO_TOKEN=your_forgejo_token_here
-DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@localhost:5432/devplatform
-FORGEJO_URL=http://localhost:3001
+# Optional when the browser and Gitka server use different addresses:
+# FORGEJO_PUBLIC_URL=https://forgejo.example.test
 FORGEJO_TOKEN=your_forgejo_token_here
 FORGEJO_WRITE_TOKEN=your_forgejo_write_token_here
 FORGEJO_WEBHOOK_SECRET=your_random_secret_here
 OPENROUTER_API_KEY=your_openrouter_key_here
 LLM_MODEL=openrouter/free
+QA_EMBEDDING_MODEL=
 ```
 
 The Forgejo token is read-only (repository and user read). Features that write to Forgejo, like posting PR comments, need their own token with write permission.
@@ -204,9 +257,7 @@ The Forgejo token is read-only (repository and user read). Features that write t
 ## Status
 
 - [x] Increment 1: Core platform (auth, projects, repo viewing, members)
-- [ ] Increment 2: AI PR review
-- [ ] Increment 3: Team chat (backend complete)
-- [ ] Increment 4: Codebase Q&A
-- [ ] Increment 5: Dashboard and hardening
-
-Known gaps: passwords are not yet capped at 72 bytes (bcrypt limit), and there is no rate limiting yet (Increment 5).
+- [x] Increment 2: AI PR review
+- [x] Increment 3: Team chat
+- [x] Increment 4: Codebase Q&A
+- [x] Increment 5: Dashboard and hardening

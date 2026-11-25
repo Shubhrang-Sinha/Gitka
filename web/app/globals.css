@@ -1,26 +1,65 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-control: var(--control);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* Earl Grey 1.0.41 palette, adapted to Gitka's semantic roles. */
+  color-scheme: dark;
+  --background: #1d1f23;
+  --foreground: #d5dbe6;
+  --panel: #24262b;
+  --line: #3f424d;
+  --control: #737b8f;
+  --muted: #a6aab5;
+  --accent: #8eb8f2;
+  --accent-ink: #141820;
+  --danger: #ffa2ae;
+}
+
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  :is(a, button, input, textarea, summary):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-ink);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .button {
+    @apply inline-flex min-h-11 items-center justify-center rounded-md border border-line bg-panel px-4 py-2 text-sm font-semibold text-foreground hover:border-accent hover:text-accent disabled:opacity-55;
+  }
+
+  .button-primary {
+    @apply border-accent bg-accent text-accent-ink hover:text-accent-ink hover:brightness-90;
+  }
+
+  .field {
+    @apply block min-h-11 w-full rounded-md border border-control bg-panel px-3 py-2 text-base placeholder:text-muted;
+  }
+
+  .auth-form {
+    @apply mx-auto my-10 w-[calc(100%-2.5rem)] max-w-sm space-y-4 rounded-xl border border-line bg-panel p-5 sm:my-20 sm:p-7;
+  }
 }

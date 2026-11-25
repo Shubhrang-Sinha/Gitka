@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, MAX_PASSWORD_BYTES } from "@/lib/password";
+import { rateLimit } from "@/lib/rate-limit";
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   const normalizedEmail = email.trim().toLowerCase();
   const name = displayName.trim();
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+  if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     return fail("Please enter a valid email address", 400);
   }
   if (name.length < 1 || name.length > 50) {
@@ -39,8 +40,12 @@ export async function POST(request: Request) {
   if (password.length < 8) {
     return fail("Password must be at least 8 characters", 400);
   }
-  // TODO: reject passwords longer than 72 bytes (bcrypt limit), added later
+  if (Buffer.byteLength(password, "utf8") > MAX_PASSWORD_BYTES) {
+    return fail(`Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes`, 400);
+  }
 
+  const limited = await rateLimit("register-total", "", 30, 60);
+  if (limited) return limited;
   const passwordHash = await hashPassword(password);
 
   try {

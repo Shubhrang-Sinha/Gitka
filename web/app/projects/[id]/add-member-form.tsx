@@ -41,19 +41,21 @@ export default function AddMemberForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-3 space-y-2">
+      <label htmlFor="member-email" className="block text-sm font-medium">Member email</label>
       <input
-        className="w-full rounded border border-gray-400 bg-transparent p-2"
+        id="member-email"
+        className="field"
         type="email"
         placeholder="Email of a registered user"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
       />
-      {error && <p className="text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <button
         type="submit"
         disabled={loading}
-        className="rounded bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50"
+        className="button button-primary"
       >
         {loading ? "Adding..." : "Add member"}
       </button>
