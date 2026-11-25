@@ -44,11 +44,11 @@ async function ProjectsContent() {
   );
 
   return (
-    <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
+    <main className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-gray-300 pb-5 dark:border-gray-700">
-        <h1 className="text-2xl font-bold tracking-tight">Your projects</h1>
+        <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">Your projects</h1>
         <div className="flex min-w-0 flex-wrap items-center gap-3 text-sm">
-          <span className="break-all text-gray-600 dark:text-gray-400">{user.display_name}</span>
+          <span className="break-all text-muted">{user.display_name}</span>
           <LogoutButton />
         </div>
       </header>
@@ -56,11 +56,11 @@ async function ProjectsContent() {
       <div className="grid items-start gap-8 md:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
         <section aria-label="Project list" className="min-w-0">
           {projects.length === 0 ? (
-            <p className="rounded-xl border border-gray-300 p-5 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
+            <p className="rounded-xl border border-gray-300 p-5 text-sm text-muted dark:border-gray-700 dark:text-gray-400">
               Link a Forgejo repository to create your first project.
             </p>
           ) : (
-            <ul className="divide-y divide-gray-300 border-y border-gray-300 dark:divide-gray-700 dark:border-gray-700">
+            <ul className="divide-y divide-line border-y border-line">
               {projects.map((project) => {
                 const href = `/projects/${project.id}`;
                 return (
@@ -72,11 +72,11 @@ async function ProjectsContent() {
                             {project.name}
                           </Link>
                         </h2>
-                        <p className="break-all text-sm text-gray-600 dark:text-gray-400">
+                        <p className="break-all text-sm text-muted">
                           {project.forgejo_repo}
                         </p>
                       </div>
-                      <span className="text-sm capitalize text-gray-600 dark:text-gray-400">{project.role}</span>
+                      <span className="text-sm capitalize text-muted">{project.role}</span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
                       <Link href={`${href}/pulls`} className="underline underline-offset-4">Pull requests</Link>
@@ -84,7 +84,7 @@ async function ProjectsContent() {
                       <Link href={`${href}/qa`} className="underline underline-offset-4">Codebase Q&amp;A</Link>
                     </div>
                     {project.pr_number !== null && project.review_status && (
-                      <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                      <p className="mt-3 text-sm text-muted">
                         Latest review <Link href={`${href}/pulls/${project.pr_number}`} className="underline underline-offset-4">
                           #{project.pr_number}
                         </Link>
@@ -106,7 +106,7 @@ async function ProjectsContent() {
 
 export default function ProjectsPage() {
   return (
-    <Suspense fallback={<p role="status" className="mx-auto max-w-5xl px-5 py-8 sm:px-8">Loading projects…</p>}>
+    <Suspense fallback={<p role="status" className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8">Loading projects…</p>}>
       <ProjectsContent />
     </Suspense>
   );

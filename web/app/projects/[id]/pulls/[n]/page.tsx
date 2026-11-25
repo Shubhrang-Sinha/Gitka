@@ -47,20 +47,20 @@ async function PullContent({
   const forgejoLink = `${process.env.FORGEJO_URL}/${project.forgejo_repo}/pulls/${prNumber}`;
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-8">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-8 sm:px-8">
       <Link href={`/projects/${project.id}/pulls`} className="text-sm underline">
         ← Pull requests
       </Link>
 
       {loadError || !pr ? (
-        <p className="text-red-500">{loadError ?? "Pull request not found."}</p>
+        <p className="text-danger">{loadError ?? "Pull request not found."}</p>
       ) : (
         <>
           <header className="space-y-1">
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">
               #{pr.number} {pr.title}
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted">
               {pr.user.login} · {pr.head.ref} → {pr.base.ref} · {pr.state} ·{" "}
               {new Date(pr.created_at).toLocaleDateString()}
             </p>
@@ -77,7 +77,7 @@ async function PullContent({
           {pr.body && (
             <section>
               <h2 className="mb-2 font-semibold">Description</h2>
-              <pre className="whitespace-pre-wrap rounded border border-gray-400 p-3 text-sm">
+              <pre className="whitespace-pre-wrap wrap-anywhere rounded border border-line p-3 text-sm">
                 {pr.body}
               </pre>
             </section>

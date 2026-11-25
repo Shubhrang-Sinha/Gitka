@@ -17,7 +17,18 @@ type Result = {
   notice: string | null;
 };
 
-const primaryButton = "rounded-md bg-foreground px-4 py-2 text-sm font-semibold text-background hover:opacity-85 disabled:opacity-45";
+function Answer({ text }: { text: string }) {
+  return (
+    <p className="whitespace-pre-wrap wrap-anywhere leading-relaxed">
+      {text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g).map((part, index) => {
+        if (index % 2 === 0) return part;
+        return part.startsWith("`")
+          ? <code key={index} className="rounded bg-panel px-1 text-sm">{part.slice(1, -1)}</code>
+          : <strong key={index}>{part.slice(2, -2)}</strong>;
+      })}
+    </p>
+  );
+}
 
 export default function CodebaseQuestions({
   projectId,
@@ -76,7 +87,7 @@ export default function CodebaseQuestions({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-center justify-between gap-3 border-y border-gray-400 py-4">
+      <section className="flex flex-wrap items-center justify-between gap-3 border-y border-line py-4">
         <div aria-live="polite">
           {index ? (
             <>
@@ -97,7 +108,7 @@ export default function CodebaseQuestions({
             type="button"
             disabled={pending !== null}
             onClick={refreshIndex}
-            className="rounded-md border border-gray-400 px-3 py-2 text-sm font-medium hover:bg-foreground/10 disabled:opacity-45"
+            className="button"
           >
             {pending === "index" ? "Indexing…" : index ? "Refresh index" : "Index repository"}
           </button>
@@ -109,7 +120,7 @@ export default function CodebaseQuestions({
           <label htmlFor="codebase-question" className="block font-semibold">Question about the repository</label>
           <textarea
             id="codebase-question"
-            className="block w-full resize-y rounded-md border border-gray-400 bg-background p-3 focus-visible:outline-2"
+            className="field resize-y"
             placeholder="Where does the app handle sign-in?"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
@@ -118,7 +129,7 @@ export default function CodebaseQuestions({
             required
           />
           <div className="flex flex-wrap items-center gap-3">
-            <button type="submit" disabled={pending !== null || !question.trim()} className={primaryButton}>
+            <button type="submit" disabled={pending !== null || !question.trim()} className="button button-primary">
               {pending === "ask" ? "Searching…" : usesAi ? "Ask question" : "Find sources"}
             </button>
             <p className="text-sm opacity-80">
@@ -129,11 +140,11 @@ export default function CodebaseQuestions({
       )}
 
       {index?.file_count === 0 && <p>This snapshot contains no eligible source files.</p>}
-      {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
 
       {result && (
         <section aria-label="Search result" aria-live="polite" className="space-y-4">
-          {result.answer && <p className="whitespace-pre-wrap wrap-break-word">{result.answer}</p>}
+          {result.answer && <Answer text={result.answer} />}
           {result.notice && <p>{result.notice}</p>}
           {result.sources.length > 0 && (
             <>
@@ -141,12 +152,12 @@ export default function CodebaseQuestions({
               <ol className="space-y-2">
                 {result.sources.map((source, position) => (
                   <li key={`${source.path}:${source.start_line}`}>
-                    <details className="rounded-md border border-gray-400">
+                    <details className="rounded-md border border-line">
                       <summary className="cursor-pointer px-3 py-2 text-sm wrap-anywhere">
                         <span className="mr-2 opacity-80">[{position + 1}]</span>
                         <code>{source.path}:{source.start_line}–{source.end_line}</code>
                       </summary>
-                      <pre className="overflow-x-auto border-t border-gray-400 p-3 text-xs">
+                      <pre className="overflow-x-auto border-t border-line p-3 text-xs">
                         <code>{source.content}</code>
                       </pre>
                     </details>

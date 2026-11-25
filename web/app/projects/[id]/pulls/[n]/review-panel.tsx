@@ -118,22 +118,22 @@ export default function ReviewPanel({
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={start}
           disabled={busy || pending || loading}
-          className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+          className="button button-primary"
         >
           {pending ? "Reviewing..." : review ? "Review latest commit" : "Review this PR"}
         </button>
-        {pending && <span className="text-sm text-gray-500">This usually takes under a minute.</span>}
+        {pending && <span className="text-sm text-muted">This usually takes under a minute.</span>}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {notice && <p className="text-sm text-gray-600">{notice}</p>}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      {notice && <p role="status" className="text-sm text-muted">{notice}</p>}
 
       {review?.status === "failed" && (
-        <p className="rounded border border-red-300 p-3 text-sm text-red-700">
+        <p role="alert" className="wrap-anywhere rounded border border-line p-3 text-sm text-danger">
           Review failed: {review.error ?? "unknown error"}
         </p>
       )}
@@ -141,7 +141,7 @@ export default function ReviewPanel({
       {review?.status === "done" && (
         <div className="space-y-3">
           {review.summary && <p className="text-sm">{review.summary}</p>}
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             Model: {review.model} · {review.input_tokens ?? "?"} tokens in,{" "}
             {review.output_tokens ?? "?"} out
           </p>
@@ -149,15 +149,15 @@ export default function ReviewPanel({
           <ul className="space-y-2">
             {comments.map((c, i) => (
               <li key={i} className="rounded border p-3">
-                <div className="mb-1 flex items-center gap-2 text-sm">
+                <div className="mb-1 flex flex-wrap items-center gap-2 text-sm">
                   <span className={`rounded px-2 py-0.5 text-xs ${BADGE[c.severity]}`}>
                     {c.severity}
                   </span>
-                  <code>
+                  <code className="min-w-0 wrap-anywhere">
                     {c.path}:{c.line}
                   </code>
                 </div>
-                <p className="whitespace-pre-wrap text-sm">{c.body}</p>
+                <p className="whitespace-pre-wrap wrap-anywhere text-sm">{c.body}</p>
               </li>
             ))}
           </ul>

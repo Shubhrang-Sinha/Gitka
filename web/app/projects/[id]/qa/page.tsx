@@ -15,11 +15,11 @@ async function CodebaseContent({ params }: Props) {
   const index = await getIndex(id);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-8 sm:px-8">
       <Link href={`/projects/${id}`} className="text-sm underline underline-offset-4">
         {project.name}
       </Link>
-      <h1 className="text-2xl font-bold">Codebase Q&amp;A</h1>
+      <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">Codebase Q&amp;A</h1>
       <CodebaseQuestions
         projectId={id}
         isOwner={project.role === "owner"}

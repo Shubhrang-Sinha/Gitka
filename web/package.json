@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate": "bun --env-file=.env.local scripts/migrate.ts"
+    "migrate": "bun --env-file=.env.local scripts/migrate.ts",
+    "seed:demo": "bun --env-file=.env.local scripts/seed-demo.ts"
   },
   "dependencies": {
     "@openrouter/ai-sdk-provider": "^3.1.0",

@@ -67,63 +67,64 @@ async function RepoContent({ params }: { params: Promise<{ id: string }> }) {
   );
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-8">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-8 sm:px-8">
       <Link href="/projects" className="text-sm underline">
         ← All projects
       </Link>
 
       <header>
-        <h1 className="text-2xl font-bold">{project.name}</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">{project.name}</h1>
+        <p className="text-sm text-muted">
           {project.forgejo_repo} · {project.role}
         </p>
       </header>
       <nav aria-label="Project tools" className="flex flex-wrap gap-2">
-        <Link href={`/projects/${project.id}/pulls`} className="rounded border border-gray-400 px-3 py-1 text-sm hover:bg-gray-400/20">
+        <Link href={`/projects/${project.id}/pulls`} className="button">
           Pull requests
         </Link>
-        <Link href={`/projects/${project.id}/chat`} className="rounded border border-gray-400 px-3 py-1 text-sm hover:bg-gray-400/20">
+        <Link href={`/projects/${project.id}/chat`} className="button">
           Team chat
         </Link>
-        <Link href={`/projects/${project.id}/qa`} className="rounded border border-gray-400 px-3 py-1 text-sm hover:bg-gray-400/20">
+        <Link href={`/projects/${project.id}/qa`} className="button">
           Codebase Q&A
         </Link>
       </nav>
       <section>
         <h2 className="mb-2 font-semibold">Members</h2>
-        <ul className="rounded border border-gray-400">
+        <ul className="rounded border border-line">
           {members.map((member) => (
             <li
               key={member.email}
-              className="flex justify-between border-b border-gray-400 p-2 last:border-b-0"
+              className="flex items-start justify-between gap-3 border-b border-line p-3 last:border-b-0"
             >
-              <span>
-                {member.display_name}{" "}
-                <span className="text-sm text-gray-500">{member.email}</span>
+              <span className="min-w-0 wrap-anywhere">
+                <span className="block font-medium">{member.display_name}</span>
+                <span className="block text-sm text-muted">{member.email}</span>
               </span>
-              <span className="text-sm text-gray-500">{member.role}</span>
+              <span className="text-sm text-muted">{member.role}</span>
             </li>
           ))}
         </ul>
         {project.role === "owner" && <AddMemberForm projectId={project.id} />}
       </section>
 
-      {loadError && <p className="text-red-500">{loadError}</p>}
+      {loadError && <p className="text-danger">{loadError}</p>}
 
       {!loadError && (
         <>
           <section>
             <h2 className="mb-2 font-semibold">Files</h2>
             {entries.length === 0 ? (
-              <p className="text-gray-500">This repository has no files yet.</p>
+              <p className="text-muted">This repository has no files yet.</p>
             ) : (
-              <ul className="rounded border border-gray-400">
+              <ul className="rounded border border-line">
                 {entries.map((entry) => (
                   <li
                     key={entry.path}
-                    className="border-b border-gray-400 p-2 last:border-b-0"
+                    className="flex justify-between gap-3 border-b border-line p-3 last:border-b-0"
                   >
-                    {entry.type === "dir" ? "📁" : "📄"} {entry.name}
+                    <code className="min-w-0 wrap-anywhere text-sm">{entry.name}</code>
+                    <span className="text-sm text-muted">{entry.type === "dir" ? "Folder" : "File"}</span>
                   </li>
                 ))}
               </ul>
@@ -133,9 +134,9 @@ async function RepoContent({ params }: { params: Promise<{ id: string }> }) {
           <section>
             <h2 className="mb-2 font-semibold">README</h2>
             {readme === null ? (
-              <p className="text-gray-500">No README.md found.</p>
+              <p className="text-muted">No README.md found.</p>
             ) : (
-              <pre className="whitespace-pre-wrap rounded border border-gray-400 p-3 text-sm">
+              <pre className="whitespace-pre-wrap wrap-anywhere rounded border border-line p-3 text-sm">
                 {readme}
               </pre>
             )}

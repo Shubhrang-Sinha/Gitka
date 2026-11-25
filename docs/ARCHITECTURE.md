@@ -7,7 +7,7 @@ Read this before adding a feature.
 Three pieces, all running locally in Docker or on your machine:
 
 ```
-Browser  ->  Next.js app (web/, port 3000)  ->  PostgreSQL + pgvector (port 5432)
+Browser  ->  Next.js app (web/, port 3000)  ->  PostgreSQL + pgvector (host port 5433)
                        |  ^
                        |  |  webhooks (signed)
                        v  |
@@ -171,7 +171,7 @@ Rules:
 ## Environment variables (`web/.env.local`)
 
 ```
-DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@localhost:5432/devplatform
+DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@127.0.0.1:5433/devplatform
 FORGEJO_URL=http://localhost:3001
 FORGEJO_TOKEN=your_forgejo_token_here
 FORGEJO_WRITE_TOKEN=your_forgejo_write_token_here

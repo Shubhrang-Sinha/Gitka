@@ -60,20 +60,20 @@ export default function Chat({ projectId }: { projectId: string }) {
     }
   }
   return <div className="space-y-4">
-    <div className="space-y-3 rounded border border-gray-400 p-4" aria-live="polite">
+    <div className="space-y-3 rounded border border-line p-4" aria-live="polite">
       {!messages && !loadError && <p>Loading messages…</p>}
       {messages?.length === 0 && <p>No messages yet.</p>}
       {messages?.map((message) => <div key={message.id}>
-        <p className="text-sm font-semibold">{message.display_name} <time dateTime={message.created_at} className="font-normal text-gray-500">{new Date(message.created_at).toLocaleString()}</time></p>
-        <p className="whitespace-pre-wrap break-words">{message.body}</p>
+        <p className="text-sm font-semibold">{message.display_name} <time dateTime={message.created_at} className="font-normal text-muted">{new Date(message.created_at).toLocaleString()}</time></p>
+        <p className="whitespace-pre-wrap wrap-anywhere">{message.body}</p>
       </div>)}
     </div>
-    {loadError && <p role="alert" className="text-red-500">{loadError}</p>}
-    {sendError && <p role="alert" className="text-red-500">{sendError}</p>}
+    {loadError && <p role="alert" className="text-danger">{loadError}</p>}
+    {sendError && <p role="alert" className="text-danger">{sendError}</p>}
     <form onSubmit={send} className="space-y-2">
       <label htmlFor="message" className="block">Message</label>
-      <textarea id="message" value={body} onChange={(event) => setBody(event.target.value)} maxLength={4000} required disabled={sending} className="w-full rounded border border-gray-400 p-2" />
-      <button disabled={sending || !body.trim()} className="rounded border border-gray-400 px-3 py-1 disabled:opacity-50">Send</button>
+      <textarea id="message" value={body} onChange={(event) => setBody(event.target.value)} maxLength={4000} required disabled={sending} className="field" />
+      <button disabled={sending || !body.trim()} className="button button-primary">Send</button>
     </form>
   </div>;
 }

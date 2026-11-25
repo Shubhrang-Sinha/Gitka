@@ -71,35 +71,34 @@ async function PullsContent({
   const tabs: StateFilter[] = ["open", "closed", "all"];
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-8">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-8 sm:px-8">
       <Link href={`/projects/${project.id}`} className="text-sm underline">
         ← {project.name}
       </Link>
 
       <header>
-        <h1 className="text-2xl font-bold">Pull requests</h1>
-        <p className="text-sm text-gray-500">{project.forgejo_repo}</p>
+        <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">Pull requests</h1>
+        <p className="text-sm text-muted">{project.forgejo_repo}</p>
       </header>
 
-      <nav className="flex gap-2 text-sm">
+      <nav aria-label="Filter pull requests" className="flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <Link
             key={tab}
             href={`/projects/${project.id}/pulls?state=${tab}`}
-            className={`rounded border border-gray-400 px-3 py-1 ${
-              tab === state ? "bg-gray-800" : "hover:bg-gray-800"
-            }`}
+            aria-current={tab === state ? "page" : undefined}
+            className={tab === state ? "button button-primary capitalize" : "button capitalize"}
           >
             {tab}
           </Link>
         ))}
       </nav>
 
-      {loadError && <p className="text-red-500">{loadError}</p>}
+      {loadError && <p className="text-danger">{loadError}</p>}
 
       {!loadError &&
         (pulls.length === 0 ? (
-          <p className="text-gray-500">No {state === "all" ? "" : state} pull requests.</p>
+          <p className="text-muted">No {state === "all" ? "" : state} pull requests.</p>
         ) : (
           <ul className="space-y-2">
             {pulls.map((pr) => {
@@ -108,19 +107,19 @@ async function PullsContent({
                 <li key={pr.number}>
                   <Link
                     href={`/projects/${project.id}/pulls/${pr.number}`}
-                    className="block rounded border border-gray-400 p-3 hover:bg-gray-800"
+                    className="block rounded border border-line p-3 hover:border-accent hover:bg-panel"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="font-semibold">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 wrap-anywhere font-semibold">
                         #{pr.number} {pr.title}
                       </div>
                       {status && (
-                        <span className="shrink-0 rounded border border-gray-400 px-2 py-0.5 text-xs">
+                        <span className="shrink-0 rounded border border-line px-2 py-0.5 text-xs">
                           {REVIEW_LABEL[status] ?? status}
                         </span>
                       )}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="wrap-anywhere text-sm text-muted">
                       {pr.user.login} · {pr.head.ref} → {pr.base.ref} · {pr.state}
                     </div>
                   </Link>

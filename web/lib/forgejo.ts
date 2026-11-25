@@ -1,6 +1,12 @@
 const baseUrl = process.env.FORGEJO_URL;
 const token = process.env.FORGEJO_TOKEN;
 
+export class ForgejoRequestError extends Error {
+  constructor(readonly status: number, path: string) {
+    super(`Forgejo API returned ${status} for ${path}`);
+  }
+}
+
 export async function forgejoFetch<T>(path: string, signal?: AbortSignal): Promise<T> {
   if (!baseUrl || !token) {
     throw new Error("FORGEJO_URL or FORGEJO_TOKEN is missing from .env.local");
@@ -16,7 +22,7 @@ export async function forgejoFetch<T>(path: string, signal?: AbortSignal): Promi
   });
 
   if (!response.ok) {
-    throw new Error(`Forgejo API returned ${response.status} for ${path}`);
+    throw new ForgejoRequestError(response.status, path);
   }
 
   return (await response.json()) as T;
@@ -33,7 +39,7 @@ export async function forgejoFetchText(path: string): Promise<string | null> {
 
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(`Forgejo API returned ${response.status} for ${path}`);
+    throw new ForgejoRequestError(response.status, path);
   }
   return await response.text();
 }

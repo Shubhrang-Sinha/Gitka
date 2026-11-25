@@ -38,47 +38,62 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
+    <main>
+      <form onSubmit={handleSubmit} className="auth-form">
         <h1 className="text-2xl font-bold">Create an account</h1>
 
-        <input
-          className="w-full rounded border border-gray-400 bg-transparent p-2"
-          placeholder="Display name"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          required
-        />
-        <input
-          className="w-full rounded border border-gray-400 bg-transparent p-2"
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          className="w-full rounded border border-gray-400 bg-transparent p-2"
-          type="password"
-          placeholder="Password (min 8 characters)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <div className="space-y-1.5">
+          <label htmlFor="display-name" className="block text-sm font-medium">Display name</label>
+          <input
+            id="display-name"
+            autoComplete="nickname"
+            className="field"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="email" className="block text-sm font-medium">Email</label>
+          <input
+            id="email"
+            autoComplete="email"
+            className="field"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="password" className="block text-sm font-medium">Password</label>
+          <input
+            id="password"
+            autoComplete="new-password"
+            className="field"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+            aria-describedby="password-hint"
+            required
+          />
+          <p id="password-hint" className="text-sm text-muted">Use at least 8 characters.</p>
+        </div>
 
-        {error && <p className="text-red-500">{error}</p>}
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded bg-blue-600 p-2 font-semibold text-white disabled:opacity-50"
+          className="button button-primary w-full"
         >
           {loading ? "Creating..." : "Register"}
         </button>
 
-        <p className="text-sm">
+        <p className="text-sm text-muted">
           Already have an account?{" "}
-          <Link href="/login" className="underline">
+          <Link href="/login" className="font-medium text-accent underline underline-offset-4">
             Log in
           </Link>
         </p>

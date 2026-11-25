@@ -16,11 +16,11 @@ async function ChatPageContent({ params }: { params: Promise<{ id: string }> }) 
   );
   if (!project.rowCount) notFound();
   return (
-    <main className="mx-auto max-w-2xl space-y-4 p-8">
+    <main className="mx-auto w-full max-w-3xl space-y-4 px-5 py-8 sm:px-8">
       <Link href={`/projects/${id}`} className="text-sm underline">
         ← {project.rows[0].name}
       </Link>
-      <h1 className="text-2xl font-bold">Team chat</h1>
+      <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">Team chat</h1>
       <Chat projectId={id} />
     </main>
   );

@@ -26,7 +26,7 @@ Forgejo and PostgreSQL store their data on local Docker volumes. When OpenRouter
 3. Open Forgejo at http://localhost:3001, complete the install wizard, create an admin account, and generate an API token (read access to repository and user).
 4. Create `web/.env.local` with:
    ```
-   DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@localhost:5432/devplatform
+   DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@127.0.0.1:5433/devplatform
    FORGEJO_URL=http://localhost:3001
    FORGEJO_TOKEN=your_token_here
    ```
@@ -38,6 +38,24 @@ Forgejo and PostgreSQL store their data on local Docker volumes. When OpenRouter
    bun run dev
    ```
 6. The app runs at http://localhost:3000.
+
+## Seed the demo
+
+With Docker Compose running and `web/.env.local` configured, run these commands from `web/`:
+
+```sh
+bun run migrate
+bun run seed:demo
+bun run dev
+```
+
+Set `FORGEJO_SEED_TOKEN` in `web/.env.local` to a token with `write:user` and `write:repository` for the local account that will own the demo repository. You can use `FORGEJO_WRITE_TOKEN` if it has those permissions and belongs to the same account as `FORGEJO_TOKEN`. The app's read token must be able to read the private demo repository. The seed targets local services and can be rerun with the same credentials file.
+
+Sign in with the generated owner or teammate credentials in `web/.env.demo.json`. Keep that file local. The owner lands on the dashboard and can open **Lantern Schedule**, backed by the private `gitka-demo` Forgejo repository.
+
+- **Pull requests** has an open change ready for live review and a closed change with a clearly labeled sample review. Select **Review this PR** on the open change to start a new review.
+- **Team chat** starts with messages from both demo accounts. Sign in as the teammate in another browser profile to demonstrate message delivery.
+- **Codebase Q&A** comes pre-indexed. Ask “What is the default lantern inspection interval?” and open the source excerpt in `src/schedule.ts`. OpenRouter enables generated answers and live model reviews. Without its key, Gitka provides keyword results and a placeholder PR reviewer.
 
 ## Codebase Q&A
 
