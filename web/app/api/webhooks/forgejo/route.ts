@@ -59,16 +59,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Unexpected payload" }, { status: 400 });
   }
 
-  const found = await pool.query("SELECT id FROM projects WHERE forgejo_repo = $1", [repo]);
+  const found = await pool.query(`SELECT p.id, m.user_id FROM projects p JOIN project_members m ON m.project_id = p.id AND m.role = 'owner' JOIN forgejo_identities fi ON fi.user_id = m.user_id WHERE p.forgejo_repo = $1 ORDER BY m.user_id LIMIT 1`, [repo]);
   if (found.rows.length === 0) {
     return NextResponse.json({ ok: true, ignored: "repository is not linked to a project" });
   }
   const projectId: number = found.rows[0].id;
+  const userId: number = found.rows[0].user_id;
 
   let start;
   try {
     // Re-fetches the PR from Forgejo, so the head commit never comes from the payload.
-    start = await startReview(projectId, repo, prNumber, null);
+    start = await startReview(projectId, repo, prNumber, userId);
   } catch (error) {
     console.error("Webhook could not start review:", error);
     return NextResponse.json({ ok: false, error: "Could not start review" }, { status: 502 });
@@ -78,6 +79,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, started: false, status: start.status });
   }
 
-  after(() => runReview(start.reviewId, start.token, repo, start.pr));
+  after(() => runReview(start.reviewId, start.token, repo, start.pr, userId));
   return NextResponse.json({ ok: true, started: true, reviewId: start.reviewId }, { status: 202 });
 }

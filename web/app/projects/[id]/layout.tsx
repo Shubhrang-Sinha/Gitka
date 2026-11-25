@@ -4,7 +4,11 @@ import { notFound, redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { forgejoRepoUrl } from "@/lib/forgejo-links";
 import { getCurrentUser } from "@/lib/session";
+import { forgejoFetchAs } from "@/lib/forgejo";
 import ProjectNav from "./project-nav";
+
+// Project navigation depends on the current session and live Forgejo access.
+export const instant = false;
 
 async function ProjectShell({ children, params }: LayoutProps<"/projects/[id]">) {
   const { id } = await params;
@@ -20,6 +24,7 @@ async function ProjectShell({ children, params }: LayoutProps<"/projects/[id]">)
     [id, user.id],
   );
   if (!project) notFound();
+  try { await forgejoFetchAs(user.id, `/repos/${project.forgejo_repo}`); } catch { notFound(); }
 
   const repositoryUrl = forgejoRepoUrl(project.forgejo_repo);
   return (

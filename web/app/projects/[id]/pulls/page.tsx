@@ -4,9 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { forgejoRepoUrl } from "@/lib/forgejo-links";
-import { listPulls, type PullRequest } from "@/lib/forgejo-pulls";
+import type { PullRequest } from "@/lib/forgejo-pulls";
+import { forgejoFetchAs } from "@/lib/forgejo";
+import CreatePullForm from "./create-pull-form";
 
 export const metadata = { title: "Pull requests" };
+export const instant = false;
 
 type StateFilter = "open" | "closed" | "all";
 
@@ -50,13 +53,29 @@ async function PullsContent({
   const state: StateFilter =
     stateParam === "closed" || stateParam === "all" ? stateParam : "open";
 
+  const repoPath = project.forgejo_repo.split("/").map(encodeURIComponent).join("/");
+  let branches: string[] | null = null;
+  let defaultBranch = "";
   let pulls: PullRequest[] = [];
   let loadError: string | null = null;
   try {
-    pulls = await listPulls(project.forgejo_repo, state, AbortSignal.timeout(8000));
+    pulls = await forgejoFetchAs<PullRequest[]>(user.id, `/repos/${repoPath}/pulls?state=${state}`);
   } catch (error) {
     console.error("Forgejo PR list failed:", error);
     loadError = "Could not load pull requests from Forgejo. Reload the page to try again.";
+  }
+
+  if (!loadError) {
+    try {
+      const [branchRows, repository] = await Promise.all([
+        forgejoFetchAs<{ name: string }[]>(user.id, `/repos/${repoPath}/branches?limit=100`),
+        forgejoFetchAs<{ default_branch: string }>(user.id, `/repos/${repoPath}`),
+      ]);
+      branches = branchRows.map((branch) => branch.name);
+      defaultBranch = repository.default_branch;
+    } catch (error) {
+      console.error("Forgejo branch list failed:", error instanceof Error ? error.name : "Unknown error");
+    }
   }
 
   // Latest review status per PR, so the list can show a badge.
@@ -81,6 +100,8 @@ async function PullsContent({
         {forgejoLink && <a href={forgejoLink} className="button">Open pull requests in Forgejo</a>}
       </header>
 
+      {branches ? <CreatePullForm projectId={String(project.id)} branches={branches} defaultBranch={defaultBranch} /> : !loadError && <p role="alert" className="text-sm text-danger">Could not load branches to create a pull request. Reload to retry.</p>}
+
       <nav aria-label="Filter pull requests" className="flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <Link
@@ -100,7 +121,7 @@ async function PullsContent({
         (pulls.length === 0 ? (
           <div className="space-y-2 rounded-xl border border-line bg-panel p-5">
             <p className="font-semibold">No {state === "all" ? "" : `${state} `}pull requests.</p>
-            {forgejoLink && <p className="text-sm text-muted">To start a pull request, open the list in Forgejo and select New Pull Request.</p>}
+            <p className="text-sm text-muted">Create a pull request to start reviewing changes.</p>
           </div>
         ) : (
           <ul className="divide-y divide-line rounded-xl border border-line bg-panel">

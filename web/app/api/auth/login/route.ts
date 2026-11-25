@@ -45,7 +45,9 @@ export async function POST(request: Request) {
   }
 
   await createSession(user.id);
+  const linked = await pool.query("SELECT 1 FROM forgejo_identities WHERE user_id = $1", [user.id]);
   return NextResponse.json({
+    connected: Boolean(linked.rowCount),
     ok: true,
     user: { id: user.id, email: user.email, display_name: user.display_name },
   });

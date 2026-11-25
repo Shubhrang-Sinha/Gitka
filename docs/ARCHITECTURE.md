@@ -59,10 +59,10 @@ devplatform/
 | File          | What it gives you                                                                                                          |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `db.ts`       | `pool`, the shared Postgres connection pool. Use `pool.query(sql, [values])`.                                              |
-| `forgejo.ts`  | `forgejoFetch<T>(path)` for JSON and `forgejoFetchText(path)` for raw text. Both call `/api/v1` on Forgejo with the token. |
+| `forgejo.ts`  | `forgejoFetchAs`, `forgejoFetchTextAs`, and `forgejoPostAs` use a connected user’s OAuth token; service-token helpers remain for demo setup. |
 | `password.ts` | `hashPassword` and `verifyPassword` (bcrypt).                                                                              |
 | `session.ts`  | `createSession`, `getCurrentUser()` (returns the user or `null`), `destroySession`.                                        |
-| `forgejo-pulls.ts` | `listPulls`, `getPull`, `getPullDiff`, `forgejoPost` (uses the write token), `postReview`. |
+| `forgejo-pulls.ts` | `listPulls`, `getPull`, `getPullDiff`, and `postReview` access Forgejo pull requests. |
 | `diff.ts` | `parseDiff(raw)`: splits a diff per file, skips lockfiles/binaries/assets, decodes git-quoted paths, numbers lines, records valid comment lines. |
 | `review.ts` | `reviewDiff(...)`: builds the prompt, calls OpenRouter via the Vercel AI SDK, validates findings against the diff. Falls back to a fake reviewer if `OPENROUTER_API_KEY` is unset. |
 | `run-review.ts` | `startReview` (dedupe + claim) and `runReview` (review, save, post). Each attempt has an ownership token, so a stale worker can't overwrite its replacement. |
@@ -124,10 +124,9 @@ new comments through `POST` on the same route. Both operations check Gitka
 project membership. Refreshing the discussion reads Forgejo again. Gitka
 stores no copy of the comments.
 
-Comments submitted from Gitka appear under the account associated with
-`FORGEJO_WRITE_TOKEN`. The Gitka UI discloses this attribution. AI review
-execution and its status remain in PostgreSQL, and published AI reviews
-remain visible in Forgejo.
+Comments submitted from Gitka use the connected user’s Forgejo identity. AI review status remains in PostgreSQL, and published reviews remain visible in Forgejo. Webhook-triggered reviews run as a connected project owner.
+
+`POST /api/repositories` creates a Forgejo repository and links it to a Gitka project. `POST /api/projects/[id]/pulls` creates a pull request as the connected user. The pull request page displays a bounded diff and branch selectors for the same repository.
 
 ## Team chat
 
@@ -138,16 +137,28 @@ Project members can read and send messages at `/projects/[id]/chat`. The client 
 
 ## Codebase Q&A
 
-The `/projects/[id]/qa` page uses `GET /api/projects/[id]/qa` for index status and
-`POST` to ask a question. Both require project membership. Owners can refresh the
-index with `POST /api/projects/[id]/qa/index`. Indexing reads Forgejo source at a
-specific default-branch commit, then stores searchable excerpts with file paths
-and line ranges. Each snapshot covers up to 200 eligible text files and 800
-excerpts. Refreshing replaces the old snapshot atomically. Answers use up to
-six retrieved excerpts and include source references.
-PostgreSQL keyword search works without a provider key. To add semantic search,
-configure `QA_EMBEDDING_MODEL` and rebuild the index. With OpenRouter enabled,
-configure projects for which sending source excerpts to the provider is permitted.
+The project assistant stores private, user-owned conversations in `qa_conversations`
+and messages with commit-pinned sources in `qa_messages`. Every request checks
+project membership, Forgejo repository access, and conversation ownership. The model receives the last 12
+messages (bounded to 4,000 characters each) and has read-only search, path-listing,
+and file-range tools. Each run is limited to six model steps and 60 seconds.
+Repository text is untrusted; model outputs can be wrong and citations are inspectable.
+
+On opening Q&A, Gitka checks the Forgejo default-branch head and enqueues an index
+job if needed. Owners may retry failures. `qa_index_jobs` records durable jobs;
+The worker uses a connected project owner’s Forgejo credentials and fails closed if no owner is connected. `bun run qa:worker` must run as a separate long-lived process with the same
+configuration as the web app. PostgreSQL claims jobs with a lease and recovers
+expired claims. Indexing keeps the prior snapshot on failure and atomically replaces
+it on success. Snapshots cover at most 200 eligible text files, 800 excerpts, and
+32 KB per file. Paths with common secrets or dependencies and files containing some
+recognizable credentials are excluded; this is not comprehensive secret detection.
+Review repository contents and provider settings before enabling AI. Messages, retrieved code, and source chunks used for semantic indexing are sent to OpenRouter.
+
+PostgreSQL full-text search is combined with pgvector similarity when an OpenRouter
+embedding model is configured with `QA_EMBEDDING_MODEL`. Without one, the UI
+explicitly reports keyword-only retrieval. A tool-capable `LLM_MODEL` and
+`OPENROUTER_API_KEY` are required for answers. Indexes are bounded snapshots and
+cannot guarantee that an answer covers every file or recent unindexed change.
 
 ## Dashboard and request limits
 
@@ -214,19 +225,22 @@ FORGEJO_URL=http://localhost:3001
 # FORGEJO_PUBLIC_URL=https://forgejo.example.test
 FORGEJO_TOKEN=your_forgejo_token_here
 FORGEJO_WRITE_TOKEN=your_forgejo_write_token_here
+FORGEJO_OAUTH_CLIENT_ID=your_public_oauth_client_id
+FORGEJO_OAUTH_REDIRECT_URI=http://localhost:3000/api/auth/forgejo/callback
+FORGEJO_TOKEN_ENCRYPTION_KEY=your_64_hex_character_key
 FORGEJO_WEBHOOK_SECRET=your_random_secret_here
 OPENROUTER_API_KEY=your_openrouter_key_here
 LLM_MODEL=openrouter/free
 QA_EMBEDDING_MODEL=
 ```
 
-The Forgejo token is read-only (repository and user read). Features that write to Forgejo, like posting PR comments, need their own token with write permission.
+Interactive repository actions use the linked user’s encrypted OAuth credentials. The legacy service tokens are retained for local demo setup and health checks, not user authorization. Keep the encryption key stable and secret.
 
 ## Running locally
 
 1. Start Docker Desktop, then from the project root: `docker compose up -d`.
 2. `cd web`, then `bun install`, `bun run migrate`, `bun run dev`.
-3. Open http://localhost:3000 and register an account. Create a repo in Forgejo (http://localhost:3001), then link it from `/projects`.
+3. Register a public OAuth application with the configured callback URL and configure the OAuth environment variables. Start the Q&A worker as described in README. Register at http://localhost:3000 and connect a Forgejo account with the same verified email; create or link a repository from `/projects`.
 4. For automatic reviews: set `FORGEJO__webhook__ALLOWED_HOST_LIST: private` on the forgejo
    service in `docker-compose.yml` (already done), then add a webhook in the repo's Settings:
    URL `http://host.docker.internal:3000/api/webhooks/forgejo`, JSON, the same secret as

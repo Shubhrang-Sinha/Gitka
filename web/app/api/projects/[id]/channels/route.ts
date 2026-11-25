@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { getCodebaseProject } from "@/lib/codebase-access";
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -18,6 +19,12 @@ export async function GET(
   const { id } = await params;
   if (!/^\d{1,15}$/.test(id)) {
     return fail("Project not found", 404);
+  }
+  try {
+    const access = await getCodebaseProject(id);
+    if (!access.project) return fail("Project not found", 404);
+  } catch {
+    return fail("Could not verify repository access with Forgejo.", 503);
   }
 
   try {

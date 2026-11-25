@@ -1,6 +1,7 @@
 import { pool } from "@/lib/db";
 import { ForgejoConfigurationError, ForgejoRequestError } from "@/lib/forgejo";
 import { listPullComments, postPullComment } from "@/lib/forgejo-pulls";
+import { ForgejoConnectionError } from "@/lib/forgejo-auth";
 import { getCurrentUser } from "@/lib/session";
 
 type Context = { params: Promise<{ id: string; n: string }> };
@@ -27,15 +28,17 @@ async function authorize({ params }: Context) {
   if (!/^\d+$/.test(n) || !Number.isSafeInteger(number) || number < 1) {
     return { error: fail("Invalid pull request number.", 400) };
   }
-  return { repo: rows[0].forgejo_repo, number };
+  return { repo: rows[0].forgejo_repo, number, userId: user.id };
 }
 
 function forgejoFailure(error: unknown, posting = false) {
+  if (error instanceof ForgejoConnectionError) return fail(error.message, 401);
   if (error instanceof ForgejoConfigurationError) {
     return fail("Forgejo discussion is unavailable. Ask the project administrator to check the Forgejo connection.", 503);
   }
   if (error instanceof ForgejoRequestError) {
     if (error.status === 404) return fail("Pull request not found.", 404);
+    if (error.status === 403) return fail("You do not have permission to access or comment on this pull request.", 403);
     if (posting && error.status === 423) {
       return fail("This pull request discussion is locked in Forgejo.", 423);
     }
@@ -59,7 +62,7 @@ export async function GET(_request: Request, context: Context) {
   if (auth.error) return auth.error;
 
   try {
-    const comments = await listPullComments(auth.repo, auth.number);
+    const comments = await listPullComments(auth.repo, auth.number, auth.userId);
     return Response.json({ ok: true, comments }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return forgejoFailure(error);
@@ -87,7 +90,7 @@ export async function POST(request: Request, context: Context) {
   }
 
   try {
-    const comment = await postPullComment(auth.repo, auth.number, body);
+    const comment = await postPullComment(auth.repo, auth.number, body, auth.userId);
     return Response.json({ ok: true, comment }, { status: 201 });
   } catch (error) {
     return forgejoFailure(error, true);

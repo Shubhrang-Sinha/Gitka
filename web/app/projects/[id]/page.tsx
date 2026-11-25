@@ -2,22 +2,23 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { pool } from "@/lib/db";
-import { forgejoFetch, forgejoFetchText } from "@/lib/forgejo";
+import { forgejoFetchAs, forgejoFetchTextAs } from "@/lib/forgejo";
 import { forgejoPublicUrl } from "@/lib/forgejo-links";
 import { getCurrentUser } from "@/lib/session";
 import AddMemberForm from "./add-member-form";
 import RetryRepository from "./retry-repository";
 
 export const metadata: Metadata = { title: "Project overview" };
+export const instant = false;
 
 type RepoEntry = { name: string; path: string; type: string; html_url?: string };
 type Project = { id: number; forgejo_repo: string; role: string };
 type Member = { display_name: string; email: string; role: string };
 
-async function RepositoryFiles({ repo }: { repo: string }) {
+async function RepositoryFiles({ repo, userId }: { repo: string; userId: string | number }) {
   let entries: RepoEntry[];
   try {
-    entries = await forgejoFetch<RepoEntry[]>(`/repos/${repo}/contents`);
+    entries = await forgejoFetchAs<RepoEntry[]>(userId, `/repos/${repo}/contents`);
   } catch (error) {
     console.error("Forgejo files load failed:", error);
     return <RetryRepository section="files" />;
@@ -56,10 +57,10 @@ async function RepositoryFiles({ repo }: { repo: string }) {
   );
 }
 
-async function RepositoryReadme({ repo }: { repo: string }) {
+async function RepositoryReadme({ repo, userId }: { repo: string; userId: string | number }) {
   let readme: string | null;
   try {
-    readme = await forgejoFetchText(`/repos/${repo}/raw/README.md`);
+    readme = await forgejoFetchTextAs(userId, `/repos/${repo}/raw/README.md`);
   } catch (error) {
     console.error("Forgejo README load failed:", error);
     return <RetryRepository section="README" />;
@@ -119,6 +120,7 @@ async function RepoContent({ params }: PageProps<"/projects/[id]">) {
     [id, user.id],
   );
   if (!project) notFound();
+  try { await forgejoFetchAs(user.id, `/repos/${project.forgejo_repo}`); } catch { notFound(); }
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8">
@@ -128,14 +130,14 @@ async function RepoContent({ params }: PageProps<"/projects/[id]">) {
           <section aria-labelledby="repository-files">
             <h2 id="repository-files" className="mb-3 font-semibold">Repository files</h2>
             <Suspense fallback={<LoadingSection>Loading files…</LoadingSection>}>
-              <RepositoryFiles repo={project.forgejo_repo} />
+              <RepositoryFiles repo={project.forgejo_repo} userId={user.id} />
             </Suspense>
           </section>
 
           <section aria-labelledby="repository-readme">
             <h2 id="repository-readme" className="mb-3 font-semibold">README</h2>
             <Suspense fallback={<LoadingSection>Loading README…</LoadingSection>}>
-              <RepositoryReadme repo={project.forgejo_repo} />
+              <RepositoryReadme repo={project.forgejo_repo} userId={user.id} />
             </Suspense>
           </section>
         </div>

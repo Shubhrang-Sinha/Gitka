@@ -24,7 +24,7 @@ export async function createSession(userId: number | string): Promise<void> {
   });
 }
 
-export async function getCurrentUser() {
+export async function getSessionUser() {
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
   if (!sessionId) return null;
@@ -37,6 +37,14 @@ export async function getCurrentUser() {
     [sessionId],
   );
   return result.rows[0] ?? null;
+}
+
+/** Unconnected users can only reach the connection flow. */
+export async function getCurrentUser() {
+  const user = await getSessionUser();
+  if (!user) return null;
+  const result = await pool.query("SELECT 1 FROM forgejo_identities WHERE user_id = $1", [user.id]);
+  return result.rowCount ? user : null;
 }
 
 export async function destroySession(): Promise<void> {

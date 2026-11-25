@@ -168,7 +168,7 @@ export default function DiscussionPanel({
           aria-describedby={`${id}-attribution`}
         />
         <p id={`${id}-attribution`} className="text-sm text-muted">
-          Forgejo shows comments from Gitka under the shared Forgejo account.
+          Comments are posted as your connected Forgejo account.
         </p>
         {postError && <p role="alert" className="text-sm text-danger">{postError}</p>}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

@@ -3,9 +3,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { pool } from "@/lib/db";
+import { forgejoFetchAs } from "@/lib/forgejo";
 import { forgejoHomeUrl, forgejoRepoUrl } from "@/lib/forgejo-links";
 import { getCurrentUser } from "@/lib/session";
 import CreateProjectForm from "./create-project-form";
+import CreateRepositoryForm from "./create-repository-form";
 import LogoutButton from "./logout-button";
 
 export const metadata: Metadata = { title: "Projects" };
@@ -30,7 +32,7 @@ async function ProjectsContent() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const { rows: projects } = await pool.query<Project>(
+  const { rows: candidates } = await pool.query<Project>(
     `SELECT p.id, p.name, p.forgejo_repo, pm.role,
             review.pr_number, review.status AS review_status
        FROM projects p
@@ -47,6 +49,21 @@ async function ProjectsContent() {
     [user.id],
   );
 
+  // Gitka membership alone is insufficient: permission may have been revoked in Forgejo.
+  const projects: Project[] = [];
+  let unverifiable = false;
+  for (let offset = 0; offset < candidates.length; offset += 8) {
+    const batch = candidates.slice(offset, offset + 8);
+    const checks = await Promise.all(batch.map(async (project) => {
+      try {
+        const path = project.forgejo_repo.split("/").map(encodeURIComponent).join("/");
+        await forgejoFetchAs(user.id, `/repos/${path}`);
+        return true;
+      } catch { return false; }
+    }));
+    batch.forEach((project, index) => { if (checks[index]) projects.push(project); else unverifiable = true; });
+  }
+
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
@@ -59,6 +76,7 @@ async function ProjectsContent() {
 
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,19rem)]">
         <section aria-label="Project list" className="min-w-0">
+          {unverifiable && <p role="status" className="mb-4 rounded-xl border border-line bg-panel p-4 text-sm text-muted">Some projects could not be shown because their Forgejo access could not be verified. Check your connection and permissions, then reload.</p>}
           {projects.length === 0 ? (
             <p className="rounded-xl border border-line bg-panel p-5 text-sm text-muted">
               Link a Forgejo repository to create your first project.
@@ -100,7 +118,7 @@ async function ProjectsContent() {
             </ul>
           )}
         </section>
-        <CreateProjectForm forgejoUrl={forgejoHomeUrl()} />
+        <aside><CreateRepositoryForm /><CreateProjectForm forgejoUrl={forgejoHomeUrl()} /></aside>
       </div>
     </main>
   );

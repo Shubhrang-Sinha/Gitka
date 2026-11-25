@@ -3,13 +3,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { ForgejoRequestError } from "@/lib/forgejo";
+import { ForgejoRequestError, forgejoFetchAs, forgejoFetchTextAs } from "@/lib/forgejo";
 import { forgejoRepoUrl } from "@/lib/forgejo-links";
-import { getPull, type PullRequest } from "@/lib/forgejo-pulls";
+import type { PullRequest } from "@/lib/forgejo-pulls";
 import DiscussionPanel from "./discussion-panel";
 import ReviewPanel from "./review-panel";
 
 export const metadata = { title: "Pull request" };
+export const instant = false;
 
 async function PullContent({
   params,
@@ -40,10 +41,15 @@ async function PullContent({
     notFound();
   }
 
+  const repoPath = project.forgejo_repo.split("/").map(encodeURIComponent).join("/");
+  let diff: string | null = null;
+  let diffError = false;
   let pr: PullRequest | null = null;
   let loadError: string | null = null;
   try {
-    pr = await getPull(project.forgejo_repo, prNumber, AbortSignal.timeout(8000));
+    pr = await forgejoFetchAs<PullRequest>(user.id, `/repos/${repoPath}/pulls/${prNumber}`);
+    try { diff = await forgejoFetchTextAs(user.id, `/repos/${repoPath}/pulls/${prNumber}.diff`); }
+    catch { diffError = true; }
   } catch (error) {
     if (error instanceof ForgejoRequestError && error.status === 404) {
       notFound();
@@ -85,9 +91,18 @@ async function PullContent({
           </header>
 
           <nav aria-label="On this pull request" className="flex flex-wrap gap-2">
+            <a href="#changes" className="button">Changes</a>
             <a href="#ai-review" className="button">AI review</a>
             <a href="#discussion" className="button">Discussion</a>
           </nav>
+
+          <section id="changes" aria-labelledby="changes-heading" className="scroll-mt-6 space-y-3">
+            <h2 id="changes-heading" className="text-lg font-semibold">Changes</h2>
+            {diffError || diff === null ? <p role="alert" className="text-sm text-danger">Could not load the changes from Forgejo.</p> : diff.length === 0 ? <p className="text-sm text-muted">No text changes.</p> : <>
+              {diff.length > 250000 && <p className="text-sm text-muted">This diff is large; only the first 250,000 characters are shown.</p>}
+              <pre className="max-h-[40rem] overflow-auto rounded-xl border border-line bg-panel p-4 text-xs leading-relaxed"><code>{diff.slice(0, 250000)}</code></pre>
+            </>}
+          </section>
 
           <ReviewPanel
             key={`${project.id}/${prNumber}/${pr.head.sha}`}

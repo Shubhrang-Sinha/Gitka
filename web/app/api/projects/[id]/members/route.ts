@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { forgejoFetchAs } from "@/lib/forgejo";
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -50,6 +51,14 @@ export async function POST(
   const newMember = found.rows[0];
   if (!newMember) {
     return fail("No user with that email has registered", 404);
+  }
+
+  const project = await pool.query<{ forgejo_repo: string }>("SELECT forgejo_repo FROM projects WHERE id = $1", [id]);
+  try {
+    await forgejoFetchAs(user.id, `/repos/${project.rows[0].forgejo_repo}`);
+    await forgejoFetchAs(newMember.id, `/repos/${project.rows[0].forgejo_repo}`);
+  } catch {
+    return fail("Both users must connect Forgejo and have access to this repository.", 403);
   }
 
   const inserted = await pool.query(

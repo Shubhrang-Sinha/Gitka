@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { readFile, writeFile } from "node:fs/promises";
@@ -80,6 +80,32 @@ async function bootstrapForgejo(base: URL, account: Account) {
       : `${updated.trimEnd()}\n${key}=${token}\n`;
     await writeFile(envFile, updated, { mode: 0o600 });
   }
+  // Create a public PKCE OAuth client for the local Gitka callback. Preserve the
+  // encryption key across seeds so previously linked accounts remain readable.
+  const redirect = process.env.FORGEJO_OAUTH_REDIRECT_URI || "http://localhost:3000/api/auth/forgejo/callback";
+  const appsResponse = await fetch(api("/user/applications/oauth2"), { headers: { Authorization: basic }, signal: AbortSignal.timeout(10000) });
+  if (!appsResponse.ok) throw new Error(`Could not list Forgejo OAuth applications: HTTP ${appsResponse.status}.`);
+  const applications = await appsResponse.json() as { client_id: string; name: string; confidential_client: boolean; redirect_uris: string[] }[];
+  let application = applications.find((app) => app.name === "Gitka local" && !app.confidential_client && app.redirect_uris.includes(redirect));
+  if (!application) {
+    const response = await fetch(api("/user/applications/oauth2"), {
+      method: "POST", headers: { Authorization: basic, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Gitka local", confidential_client: false, redirect_uris: [redirect] }), signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error(`Could not register Gitka OAuth application: HTTP ${response.status}.`);
+    application = await response.json();
+  }
+  if (!application?.client_id) throw new Error("Forgejo did not return an OAuth client ID.");
+  for (const [key, value] of Object.entries({
+    FORGEJO_OAUTH_CLIENT_ID: application.client_id,
+    FORGEJO_OAUTH_REDIRECT_URI: redirect,
+    FORGEJO_TOKEN_ENCRYPTION_KEY: process.env.FORGEJO_TOKEN_ENCRYPTION_KEY || randomBytes(32).toString("hex"),
+  })) {
+    process.env[key] = value;
+    const setting = new RegExp(`^${key}=.*$`, "m");
+    updated = setting.test(updated) ? updated.replace(setting, `${key}=${value}`) : `${updated.trimEnd()}\n${key}=${value}\n`;
+  }
+  await writeFile(envFile, updated, { mode: 0o600 });
   return basic;
 }
 

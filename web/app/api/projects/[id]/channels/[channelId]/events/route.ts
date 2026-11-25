@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { Client } from "pg";
 import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, SESSION_COOKIE } from "@/lib/session";
+import { cookies } from "next/headers";
+import { getCodebaseProject } from "@/lib/codebase-access";
+import { forgejoFetchAs } from "@/lib/forgejo";
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -16,9 +19,16 @@ export async function GET(
     return fail("Not logged in", 401);
   }
 
+  const sessionId = (await cookies()).get(SESSION_COOKIE)?.value;
   const { id, channelId } = await params;
   if (!/^\d{1,15}$/.test(id)) {
     return fail("Project not found", 404);
+  }
+  try {
+    const access = await getCodebaseProject(id);
+    if (!access.project) return fail("Project not found", 404);
+  } catch {
+    return fail("Could not verify repository access with Forgejo.", 503);
   }
   if (!/^\d{1,15}$/.test(channelId)) {
     return fail("Channel not found", 404);
@@ -144,6 +154,15 @@ export async function GET(
     }
 
     try {
+      // Long-lived streams must not outlive project or Forgejo access revocation.
+      const access = await pool.query<{ forgejo_repo: string }>(
+        `SELECT p.forgejo_repo FROM projects p JOIN project_members pm ON pm.project_id = p.id
+         JOIN sessions s ON s.user_id = pm.user_id AND s.id = $3 AND s.expires_at > now()
+         WHERE p.id = $1 AND pm.user_id = $2 LIMIT 1`, [id, user.id, sessionId],
+      );
+      if (!access.rows[0]) { cleanup(); return; }
+      const repoPath = access.rows[0].forgejo_repo.split("/").map(encodeURIComponent).join("/");
+      await forgejoFetchAs(String(user.id), `/repos/${repoPath}`);
       const messageResult = await pool.query(
         `SELECT m.id, m.channel_id, m.user_id, m.content, m.created_at,
                 u.display_name
@@ -171,7 +190,8 @@ export async function GET(
       safeEnqueue(`id: ${row.id}\nevent: message\ndata: ${eventData}\n\n`);
     } catch (err) {
       console.error("Failed to fetch message for SSE notification:", err);
-      // Do not crash the stream on database query failure
+      // Fail closed if access cannot be verified.
+      cleanup();
     }
   };
 

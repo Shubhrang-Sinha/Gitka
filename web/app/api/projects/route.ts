@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ForgejoRequestError, forgejoFetch } from "@/lib/forgejo";
+import { ForgejoRequestError, forgejoFetchAs } from "@/lib/forgejo";
+import { ForgejoConnectionError } from "@/lib/forgejo-auth";
 import { getCurrentUser } from "@/lib/session";
 
 function fail(message: string, status: number) {
@@ -31,15 +32,16 @@ export async function POST(request: Request) {
   if (projectName.length < 1 || projectName.length > 80) {
     return fail("Project name must be 1 to 80 characters", 400);
   }
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || repo.split("/").some((part) => part === "." || part === "..")) {
     return fail("Repository must look like owner/name", 400);
   }
 
   try {
-    await forgejoFetch(`/repos/${repo}`);
+    await forgejoFetchAs(user.id, `/repos/${repo}`);
   } catch (error) {
-    if (error instanceof ForgejoRequestError && error.status === 404) {
-      return fail("That repository was not found in Forgejo", 404);
+    if (error instanceof ForgejoConnectionError) return fail(error.message, 401);
+    if (error instanceof ForgejoRequestError && (error.status === 404 || error.status === 403)) {
+      return fail("That repository was not found or you do not have access in Forgejo", 404);
     }
     console.error("Could not verify repository in Forgejo:", error);
     return fail("Could not connect to Forgejo. Check the server configuration and try again.", 503);

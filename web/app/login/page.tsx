@@ -14,6 +14,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
+    let connected = false;
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -27,13 +28,14 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      connected = data.connected === true;
     } catch {
       setError("Could not reach the server");
       setLoading(false);
       return;
     }
     // Start a new document so an earlier signed-out redirect cannot be reused.
-    window.location.replace("/projects");
+    window.location.replace(connected ? "/" : "/connect-forgejo");
   }
 
   return (

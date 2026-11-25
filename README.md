@@ -37,7 +37,9 @@ Forgejo and PostgreSQL store their data on local Docker volumes. When OpenRouter
    bun run seed:demo
    bun run dev
    ```
-6. The app runs at http://localhost:3000.
+6. In a second terminal, run `cd web && bun run qa:worker` to process repository index jobs. The app runs at http://localhost:3000.
+
+Set `OPENROUTER_API_KEY` and a tool-capable `LLM_MODEL` in `web/.env.local` for the assistant. Set `QA_EMBEDDING_MODEL` to an OpenRouter embedding model for semantic search; without it the assistant reports keyword-only retrieval. The worker must use the same environment as the web app and run continuously.
 
 ## Earl Grey theme
 
@@ -92,3 +94,20 @@ Open a project and select **Codebase Q&A**. A project owner can build or refresh
 - [x] Increment 3: Team chat
 - [x] Increment 4: Codebase Q&A
 - [x] Increment 5: Dashboard and hardening
+
+## Forgejo account connection
+
+Gitka users must connect a Forgejo account before accessing projects. Create a
+**public** OAuth2 application in Forgejo with PKCE and register the exact callback
+`http://localhost:3000/api/auth/forgejo/callback` (use your deployed Gitka URL
+outside local development). Set `FORGEJO_OAUTH_CLIENT_ID`,
+`FORGEJO_OAUTH_REDIRECT_URI`, and a stable 32-byte hex
+`FORGEJO_TOKEN_ENCRYPTION_KEY` in `web/.env.local`; generate the latter with
+`openssl rand -hex 32`. Back up this key securely: changing it makes existing
+encrypted authorizations unreadable. Run `bun run migrate` and restart Gitka.
+
+Registration creates a local login and directs users to connect or create their
+Forgejo account. Existing Gitka users connect after their next login. The Forgejo
+account must have the same verified email address. Forgejo controls the OAuth
+consent screen and account registration; Gitka does not collect the user's
+Forgejo password. Reconnecting is required after authorization is revoked.

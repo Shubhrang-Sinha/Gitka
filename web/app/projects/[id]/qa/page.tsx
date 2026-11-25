@@ -7,6 +7,7 @@ import CodebaseQuestions from "./codebase-questions";
 
 type Props = { params: Promise<{ id: string }> };
 export const metadata = { title: "Codebase Q&A" };
+export const instant = false;
 
 async function CodebaseContent({ params }: Props) {
   const { id } = await params;

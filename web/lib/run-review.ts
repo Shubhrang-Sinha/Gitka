@@ -1,5 +1,6 @@
 import { pool } from "./db";
-import { getPull, getPullDiff, postReview, type PullRequest } from "./forgejo-pulls";
+import { forgejoFetchAs } from "./forgejo";
+import { getPullDiff, postReview, type PullRequest } from "./forgejo-pulls";
 import { parseDiff } from "./diff";
 import { reviewDiff } from "./review";
 
@@ -14,9 +15,10 @@ export async function startReview(
   projectId: number,
   repo: string,
   prNumber: number,
-  userId: number | null
+  userId: number | string
 ): Promise<StartResult> {
-  const pr = await getPull(repo, prNumber); // throws early if the PR doesn't exist
+  if (userId == null) throw new Error("Review requires a connected user");
+  const pr = await forgejoFetchAs<PullRequest>(userId, `/repos/${repo}/pulls/${prNumber}`); // throws early if the PR doesn't exist
 
   // Insert, or take over a failed/stale row. A take-over issues a NEW token, which
   // invalidates any worker still running under the old one. A pending review whose
@@ -63,9 +65,23 @@ export async function runReview(
   reviewId: number,
   token: string,
   repo: string,
-  pr: PullRequest
+  pr: PullRequest,
+  userId?: number | string
 ) {
   try {
+    if (userId == null) throw new Error("Review requires a connected user");
+    const authorize = async () => {
+      const access = await pool.query(
+        `SELECT 1 FROM pr_reviews r JOIN projects p ON p.id = r.project_id
+          JOIN project_members m ON m.project_id = p.id AND m.user_id = $3
+         WHERE r.id = $1 AND r.attempt_token = $2 AND r.status = 'pending'
+           AND r.created_by = $3 AND p.forgejo_repo = $4`,
+        [reviewId, token, userId, repo],
+      );
+      if (!access.rowCount) throw new Error("The review initiator no longer has project access.");
+      await forgejoFetchAs(userId, `/repos/${repo}`);
+    };
+    await authorize();
     // Cheap early exit: if we've already been replaced, don't spend a model call.
     const stillOurs = await pool.query(
       "SELECT 1 FROM pr_reviews WHERE id = $1 AND attempt_token = $2 AND status = 'pending'",
@@ -73,7 +89,7 @@ export async function runReview(
     );
     if (stillOurs.rows.length === 0) return;
 
-    const files = parseDiff(await getPullDiff(repo, pr.number));
+    const files = parseDiff(await getPullDiff(repo, pr.number, userId));
     const result = await reviewDiff(pr.title, pr.body ?? "", files);
 
     // 1. Save results. The first statement checks ownership and locks the row until
@@ -115,7 +131,8 @@ export async function runReview(
     );
     if (claim.rows.length === 0) return; // replaced in the meantime
 
-    await postReview(repo, pr.number, pr.head.sha, result.summary, result.findings);
+    await authorize();
+    await postReview(repo, pr.number, pr.head.sha, result.summary, result.findings, userId);
 
     // 3. Finish: mark done and mark the comments posted, in one atomic statement.
     await pool.query(

@@ -1,16 +1,14 @@
 import { pool } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
-import { getCurrentUser } from "@/lib/session";
+import { getCodebaseProject } from "@/lib/codebase-access";
 
 async function authorize(id: string) {
-  const user = await getCurrentUser();
+  let access;
+  try { access = await getCodebaseProject(id); }
+  catch { return { error: fail("Could not verify repository access with Forgejo.", 503) }; }
+  const { user, project } = access;
   if (!user) return { error: fail("Not logged in", 401) };
-  if (!/^\d{1,15}$/.test(id)) return { error: fail("Project not found", 404) };
-  const membership = await pool.query(
-    "SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2",
-    [id, user.id],
-  );
-  if (!membership.rowCount) return { error: fail("Project not found", 404) };
+  if (!project) return { error: fail("Project not found", 404) };
   return { user };
 }
 

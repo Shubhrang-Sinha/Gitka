@@ -29,7 +29,7 @@ export default function RegisterPage() {
         setError(data.error ?? "Registration failed");
         return;
       }
-      router.push("/login");
+      router.push("/connect-forgejo");
     } catch {
       setError("Could not reach the server");
     } finally {

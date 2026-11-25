@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { hashPassword, MAX_PASSWORD_BYTES } from "@/lib/password";
 import { rateLimit } from "@/lib/rate-limit";
+import { createSession } from "@/lib/session";
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -55,8 +56,9 @@ export async function POST(request: Request) {
        RETURNING id, email, display_name`,
       [normalizedEmail, passwordHash, name],
     );
+    await createSession(result.rows[0].id);
     return NextResponse.json(
-      { ok: true, user: result.rows[0] },
+      { ok: true, user: result.rows[0], connected: false },
       { status: 201 },
     );
   } catch (error) {

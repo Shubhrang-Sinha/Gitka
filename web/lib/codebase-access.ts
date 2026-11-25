@@ -1,6 +1,7 @@
 import { pool } from "./db";
 import { getCurrentUser } from "./session";
 import { IndexError } from "./codebase-index";
+import { forgejoFetchAs, ForgejoRequestError } from "./forgejo";
 
 type Project = { id: string; name: string; forgejo_repo: string; role: "owner" | "member" };
 
@@ -14,7 +15,15 @@ export async function getCodebaseProject(id: string) {
       WHERE p.id = $1 AND pm.user_id = $2`,
     [id, user.id],
   );
-  return { user, project: result.rows[0] ?? null };
+  const project = result.rows[0] ?? null;
+  if (!project) return { user, project: null };
+  try {
+    await forgejoFetchAs(String(user.id), `/repos/${project.forgejo_repo.split("/").map(encodeURIComponent).join("/")}`);
+  } catch (error) {
+    if (error instanceof ForgejoRequestError && (error.status === 403 || error.status === 404)) return { user, project: null };
+    throw error;
+  }
+  return { user, project };
 }
 
 export function codebaseError(message: string, status: number) {

@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { pool } from "@/lib/db";
+import { forgejoFetchAs } from "@/lib/forgejo";
 import { startReview, runReview } from "@/lib/run-review";
 
 type Ctx = { params: Promise<{ id: string; n: string }> };
@@ -16,9 +17,10 @@ async function loadProject(idStr: string, userId: number) {
      WHERE p.id = $1 AND m.user_id = $2`,
     [projectId, userId],
   );
-  return (
-    (r.rows[0] as { id: number; forgejo_repo: string } | undefined) ?? null
-  );
+  const project = (r.rows[0] as { id: number; forgejo_repo: string } | undefined) ?? null;
+  if (!project) return null;
+  try { await forgejoFetchAs(userId, `/repos/${project.forgejo_repo}`); } catch { return null; }
+  return project;
 }
 
 function parsePrNumber(nStr: string): number | null {
@@ -76,7 +78,7 @@ export async function POST(_req: Request, { params }: Ctx) {
   }
 
   // Respond now; the slow part continues after the response is sent.
-  after(() => runReview(start.reviewId, start.token, project.forgejo_repo, start.pr));
+  after(() => runReview(start.reviewId, start.token, project.forgejo_repo, start.pr, user.id));
   return NextResponse.json(
     { ok: true, started: true, reviewId: start.reviewId, status: "pending" },
     { status: 202 },

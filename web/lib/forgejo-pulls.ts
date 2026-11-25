@@ -1,4 +1,4 @@
-import { ForgejoConfigurationError, ForgejoRequestError, forgejoFetch, forgejoFetchText } from "./forgejo";
+import { ForgejoConfigurationError, ForgejoRequestError, forgejoFetch, forgejoFetchText, forgejoFetchAs, forgejoFetchTextAs, forgejoPostAs } from "./forgejo";
 
 export type PullRequest = {
   number: number;
@@ -26,8 +26,9 @@ export function getPull(repo: string, number: number, signal?: AbortSignal) {
 export async function getPullDiff(
   repo: string,
   number: number,
+  userId?: string | number,
 ): Promise<string> {
-  const diff = await forgejoFetchText(`/repos/${repo}/pulls/${number}.diff`);
+  const diff = userId == null ? await forgejoFetchText(`/repos/${repo}/pulls/${number}.diff`) : await forgejoFetchTextAs(userId, `/repos/${repo}/pulls/${number}.diff`);
   if (diff === null) {
     throw new Error(
       `Could not fetch diff for ${repo} PR #${number} (not found?)`,
@@ -53,18 +54,18 @@ function publicPullComment({ id, body, user, created_at, updated_at, html_url }:
   return { id, body, user: user ? { login: user.login } : null, created_at, updated_at, html_url };
 }
 
-export async function listPullComments(repo: string, number: number) {
+export async function listPullComments(repo: string, number: number, userId: string | number) {
   const signal = AbortSignal.timeout(8000);
   // Forgejo shares this endpoint with issues, so confirm the number is a PR.
-  await getPull(repo, number, signal);
-  const comments = await forgejoFetch<PullComment[]>(pullCommentsPath(repo, number), signal);
+  await forgejoFetchAs<PullRequest>(userId, `/repos/${repo}/pulls/${number}`, signal);
+  const comments = await forgejoFetchAs<PullComment[]>(userId, pullCommentsPath(repo, number), signal);
   return comments.map(publicPullComment);
 }
 
-export async function postPullComment(repo: string, number: number, body: string) {
+export async function postPullComment(repo: string, number: number, body: string, userId: string | number) {
   const signal = AbortSignal.timeout(8000);
-  await getPull(repo, number, signal);
-  const comment = await forgejoPost<PullComment>(pullCommentsPath(repo, number), { body }, signal);
+  await forgejoFetchAs<PullRequest>(userId, `/repos/${repo}/pulls/${number}`, signal);
+  const comment = await forgejoPostAs<PullComment>(userId, pullCommentsPath(repo, number), { body }, signal);
   return publicPullComment(comment);
 }
 
@@ -105,8 +106,10 @@ export async function postReview(
   headSha: string,
   summary: string,
   findings: Finding[],
+  userId?: string | number,
 ) {
-  return forgejoPost<{ id: number }>(`/repos/${repo}/pulls/${number}/reviews`, {
+  const post = userId == null ? forgejoPost<{ id: number }> : (path: string, body: unknown) => forgejoPostAs<{ id: number }>(userId, path, body);
+  return post(`/repos/${repo}/pulls/${number}/reviews`, {
     body: `🤖 **AI review**\n\n${summary}`,
     commit_id: headSha,
     event: "COMMENT", // plain comment review: never approves or blocks the PR

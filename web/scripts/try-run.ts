@@ -10,7 +10,7 @@ if (!repo || !n) {
 }
 
 const proj = await pool.query(
-  "SELECT id FROM projects WHERE forgejo_repo = $1",
+  "SELECT p.id, m.user_id FROM projects p JOIN project_members m ON m.project_id = p.id AND m.role = 'owner' JOIN forgejo_identities fi ON fi.user_id = m.user_id WHERE p.forgejo_repo = $1 ORDER BY m.user_id LIMIT 1",
   [repo],
 );
 if (!proj.rows[0]) {
@@ -20,10 +20,11 @@ if (!proj.rows[0]) {
   process.exit(1);
 }
 
-const start = await startReview(proj.rows[0].id, repo, Number(n), null);
+const userId: string = proj.rows[0].user_id;
+const start = await startReview(proj.rows[0].id, repo, Number(n), userId);
 if (start.started) {
   console.log(`Started review #${start.reviewId}...`);
-  await runReview(start.reviewId, start.token, repo, start.pr);} else {
+  await runReview(start.reviewId, start.token, repo, start.pr, userId);} else {
   console.log(
     `Skipped: review #${start.reviewId} for this commit is already ${start.status}.`,
   );

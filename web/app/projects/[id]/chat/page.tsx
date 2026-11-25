@@ -1,22 +1,17 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { pool } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { getCodebaseProject } from "@/lib/codebase-access";
 import Chat from "./chat";
 
 export const metadata: Metadata = { title: "Team chat" };
+export const instant = false;
 
 async function ChatPageContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await getCurrentUser();
+  const { user, project } = await getCodebaseProject(id);
   if (!user) redirect("/login");
-  if (!/^\d{1,15}$/.test(id)) notFound();
-  const project = await pool.query(
-    "SELECT p.name FROM projects p JOIN project_members m ON m.project_id = p.id WHERE p.id = $1 AND m.user_id = $2",
-    [id, user.id],
-  );
-  if (!project.rowCount) notFound();
+  if (!project) notFound();
   return (
     <main className="mx-auto w-full max-w-4xl space-y-4 px-5 py-8 sm:px-8">
       <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">Team chat</h1>
