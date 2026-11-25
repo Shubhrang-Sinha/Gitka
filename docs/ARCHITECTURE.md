@@ -8,8 +8,12 @@ Three pieces, all running locally in Docker or on your machine:
 
 ```
 Browser  ->  Next.js app (web/, port 3000)  ->  PostgreSQL + pgvector (port 5432)
-                       |
-                       +-------------------->  Forgejo REST API (port 3001)
+                       |  ^
+                       |  |  webhooks (signed)
+                       v  |
+                     Forgejo REST API (port 3001)
+
+Next.js app  ->  OpenRouter API (AI model for PR review)
 ```
 
 - **Forgejo** hosts the git repositories. It has its own SQLite database and is only accessed through its REST API, never directly.
@@ -41,18 +45,27 @@ devplatform/
       api/projects/[id]/channels/[channelId]/messages/route.ts  Get history / post message
       api/projects/[id]/channels/[channelId]/events/route.ts    SSE real-time stream
       api/health/...        db and forgejo connection checks
+      projects/[id]/pulls/page.tsx         Pull request list
+      projects/[id]/pulls/[n]/page.tsx     PR detail page + AI review panel
+      projects/[id]/pulls/[n]/review-panel.tsx   Client component: review button, status, comments
+      api/projects/[id]/pulls/[n]/review/route.ts   POST start a review, GET latest review
+      api/webhooks/forgejo/route.ts        Forgejo webhook: auto-review on PR open/update
 ```
 
 `web/lib` and `web/migrations` live directly in `web/`, **not** inside `app/`.
 
 ## Shared helpers (`web/lib`)
 
-| File | What it gives you |
-|---|---|
-| `db.ts` | `pool`, the shared Postgres connection pool. Use `pool.query(sql, [values])`. |
-| `forgejo.ts` | `forgejoFetch<T>(path)` for JSON and `forgejoFetchText(path)` for raw text. Both call `/api/v1` on Forgejo with the token. |
-| `password.ts` | `hashPassword` and `verifyPassword` (bcrypt). |
-| `session.ts` | `createSession`, `getCurrentUser()` (returns the user or `null`), `destroySession`. |
+| File          | What it gives you                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `db.ts`       | `pool`, the shared Postgres connection pool. Use `pool.query(sql, [values])`.                                              |
+| `forgejo.ts`  | `forgejoFetch<T>(path)` for JSON and `forgejoFetchText(path)` for raw text. Both call `/api/v1` on Forgejo with the token. |
+| `password.ts` | `hashPassword` and `verifyPassword` (bcrypt).                                                                              |
+| `session.ts`  | `createSession`, `getCurrentUser()` (returns the user or `null`), `destroySession`.                                        |
+| `forgejo-pulls.ts` | `listPulls`, `getPull`, `getPullDiff`, `forgejoPost` (uses the write token), `postReview`. |
+| `diff.ts` | `parseDiff(raw)`: splits a diff per file, skips lockfiles/binaries/assets, decodes git-quoted paths, numbers lines, records valid comment lines. |
+| `review.ts` | `reviewDiff(...)`: builds the prompt, calls OpenRouter via the Vercel AI SDK, validates findings against the diff. Falls back to a fake reviewer if `OPENROUTER_API_KEY` is unset. |
+| `run-review.ts` | `startReview` (dedupe + claim) and `runReview` (review, save, post). Each attempt has an ownership token, so a stale worker can't overwrite its replacement. |
 
 ## Database
 
@@ -74,6 +87,7 @@ Chat constraints and indexes:
 - `chat_messages` uses a composite index `chat_messages_channel_created_idx` on `(channel_id, created_at, id)` to optimize chronological message retrieval and cursor-based pagination.
 
 Migration rules:
+
 - Files in `web/migrations/` run in filename order. Run them with `bun run migrate`.
 - **Never edit a migration that has already been applied.** Add a new file instead.
 - To avoid number clashes, each increment owns a range: Inc 2 = 010-019, Inc 3 = 020-029, Inc 4 = 030-039, Inc 5 = 040-049. Always use three digits (`010_`, not `10_`).
@@ -144,6 +158,13 @@ Project-scoped text chat channels with real-time delivery via Server-Sent Events
 DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@localhost:5432/devplatform
 FORGEJO_URL=http://localhost:3001
 FORGEJO_TOKEN=your_forgejo_token_here
+DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@localhost:5432/devplatform
+FORGEJO_URL=http://localhost:3001
+FORGEJO_TOKEN=your_forgejo_token_here
+FORGEJO_WRITE_TOKEN=your_forgejo_write_token_here
+FORGEJO_WEBHOOK_SECRET=your_random_secret_here
+OPENROUTER_API_KEY=your_openrouter_key_here
+LLM_MODEL=openrouter/free
 ```
 
 The Forgejo token is read-only (repository and user read). Features that write to Forgejo, like posting PR comments, need their own token with write permission.
@@ -153,6 +174,10 @@ The Forgejo token is read-only (repository and user read). Features that write t
 1. Start Docker Desktop, then from the project root: `docker compose up -d`.
 2. `cd web`, then `bun install`, `bun run migrate`, `bun run dev`.
 3. Open http://localhost:3000 and register an account. Create a repo in Forgejo (http://localhost:3001), then link it from `/projects`.
+4. For automatic reviews: set `FORGEJO__webhook__ALLOWED_HOST_LIST: private` on the forgejo
+   service in `docker-compose.yml` (already done), then add a webhook in the repo's Settings:
+   URL `http://host.docker.internal:3000/api/webhooks/forgejo`, JSON, the same secret as
+   `FORGEJO_WEBHOOK_SECRET`, events Pull Request + Pull Request Synchronized.
 
 ## Adding a new feature: checklist
 
@@ -171,6 +196,10 @@ The Forgejo token is read-only (repository and user read). Features that write t
 - `.env.local` is only read at server start, so restart `bun run dev` after editing it.
 - `bun run migrate` loads `.env.local` via `--env-file`.
 - Windows PowerShell 5 has no `-SkipHttpErrorCheck`. Wrap calls in `try/catch` to see error statuses.
+- Run `bun run migrate` from `web/`, not the project root.
+- In `docker-compose.yml`, `environment:` uses `KEY: value` style; a `- KEY=value` line breaks it.
+- VS Code can show a stale "cannot find module" error for a new file. Run "TypeScript: Restart TS Server".
+- The review code swallows nothing silently: check the `error` column of `pr_reviews` and Forgejo's Recent Deliveries when a review doesn't appear.
 
 ## Status
 

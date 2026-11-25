@@ -25,7 +25,7 @@ async function RepoContent({ params }: { params: Promise<{ id: string }> }) {
        FROM projects p
        JOIN project_members pm ON pm.project_id = p.id
       WHERE p.id = $1 AND pm.user_id = $2`,
-    [id, user.id]
+    [id, user.id],
   );
   const project = result.rows[0];
   if (!project) {
@@ -38,7 +38,7 @@ async function RepoContent({ params }: { params: Promise<{ id: string }> }) {
        JOIN users u ON u.id = pm.user_id
       WHERE pm.project_id = $1
       ORDER BY pm.joined_at`,
-    [project.id]
+    [project.id],
   );
   const members = membersResult.rows;
 
@@ -48,16 +48,22 @@ async function RepoContent({ params }: { params: Promise<{ id: string }> }) {
 
   try {
     entries = await forgejoFetch<RepoEntry[]>(
-      `/repos/${project.forgejo_repo}/contents`
+      `/repos/${project.forgejo_repo}/contents`,
     );
-    readme = await forgejoFetchText(`/repos/${project.forgejo_repo}/raw/README.md`);
+    readme = await forgejoFetchText(
+      `/repos/${project.forgejo_repo}/raw/README.md`,
+    );
   } catch (error) {
     console.error("Forgejo load failed:", error);
     loadError = "Could not load this repository from Forgejo.";
   }
 
   entries.sort((a, b) =>
-    a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1
+    a.type === b.type
+      ? a.name.localeCompare(b.name)
+      : a.type === "dir"
+        ? -1
+        : 1,
   );
 
   return (
@@ -72,6 +78,12 @@ async function RepoContent({ params }: { params: Promise<{ id: string }> }) {
           {project.forgejo_repo} · {project.role}
         </p>
       </header>
+            <Link
+        href={`/projects/${project.id}/pulls`}
+        className="inline-block rounded border border-gray-400 px-3 py-1 text-sm hover:bg-gray-800"
+      >
+        Pull requests
+      </Link>
       <section>
         <h2 className="mb-2 font-semibold">Members</h2>
         <ul className="rounded border border-gray-400">

@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function AddMemberForm({ projectId }: { projectId: number | string }) {
+export default function AddMemberForm({
+  projectId,
+}: {
+  projectId: number | string;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);

@@ -38,7 +38,10 @@ export default function CreateProjectForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded border border-gray-400 p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-3 rounded border border-gray-400 p-4"
+    >
       <h2 className="font-semibold">New project</h2>
       <input
         className="w-full rounded border border-gray-400 bg-transparent p-2"

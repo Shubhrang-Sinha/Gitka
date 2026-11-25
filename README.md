@@ -48,6 +48,7 @@ All data stays on local Docker volumes.
 
 - [Architecture](docs/ARCHITECTURE.md): how the app is structured and how to add features
 - [Contributing](CONTRIBUTING.md): git workflow, review rules and security rules
+
 ## Progress
 
 - [x] Increment 1: Core platform (Docker, Next.js app, migrations, authentication, projects, repo viewing, member management)

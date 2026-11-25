@@ -11,13 +11,13 @@ Rules for working together on this project. Read this once before writing code, 
 
 ## Who owns what
 
-| Increment | Owner | Migration numbers |
-|---|---|---|
-| 1. Core platform (done) | NAME | 001-009 |
-| 2. AI PR review | NAME | 010-019 |
-| 3. Team chat | NAME | 020-029 |
-| 4. Codebase Q&A | NAME | 030-039 |
-| 5. Dashboard and hardening | NAME | 040-049 |
+| Increment                  | Owner | Migration numbers |
+| -------------------------- | ----- | ----------------- |
+| 1. Core platform (done)    | NAME  | 001-009           |
+| 2. AI PR review            | NAME  | 010-019           |
+| 3. Team chat               | NAME  | 020-029           |
+| 4. Codebase Q&A            | NAME  | 030-039           |
+| 5. Dashboard and hardening | NAME  | 040-049           |
 
 Anyone may fix a bug anywhere, but tell the owner in your PR.
 
@@ -89,7 +89,6 @@ Then open GitHub, click **Compare & pull request**, and fill in the PR.
 - **Don't merge your own PR** until someone has approved it.
 - Use **Squash and merge** so each PR becomes one clean commit on `main`.
 - After merging, delete the branch, then `git switch main` and `git pull`.
-
 
 ## Database migrations
 

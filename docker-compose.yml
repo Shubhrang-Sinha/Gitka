@@ -19,6 +19,7 @@ services:
     environment:
       USER_UID: 1000
       USER_GID: 1000
+      FORGEJO__webhook__ALLOWED_HOST_LIST: private
     ports:
       - "3001:3000"
       - "2222:22"

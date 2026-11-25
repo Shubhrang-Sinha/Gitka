@@ -48,12 +48,12 @@ export async function POST(request: Request) {
       `INSERT INTO projects (name, forgejo_repo)
        VALUES ($1, $2)
        RETURNING id, name, forgejo_repo`,
-      [projectName, repo]
+      [projectName, repo],
     );
     await client.query(
       `INSERT INTO project_members (project_id, user_id, role)
        VALUES ($1, $2, 'owner')`,
-      [project.rows[0].id, user.id]
+      [project.rows[0].id, user.id],
     );
     await client.query(
       `INSERT INTO chat_channels (project_id, name)
@@ -61,7 +61,10 @@ export async function POST(request: Request) {
       [project.rows[0].id]
     );
     await client.query("COMMIT");
-    return NextResponse.json({ ok: true, project: project.rows[0] }, { status: 201 });
+    return NextResponse.json(
+      { ok: true, project: project.rows[0] },
+      { status: 201 },
+    );
   } catch (error) {
     await client.query("ROLLBACK");
     if ((error as { code?: string }).code === "23505") {
