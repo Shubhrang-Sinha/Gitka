@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function CreateProjectForm() {
+export default function CreateProjectForm({ forgejoUrl }: { forgejoUrl: string | null }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [forgejoRepo, setForgejoRepo] = useState("");
@@ -40,9 +40,9 @@ export default function CreateProjectForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-3 rounded-xl border border-line bg-panel p-5"
+      className="space-y-3 border-t border-line pt-5"
     >
-      <h2 className="font-semibold">New project</h2>
+      <h2 className="font-semibold">Link a repository</h2>
       <label htmlFor="project-name" className="block text-sm font-medium">Project name</label>
       <input
         id="project-name"
@@ -56,15 +56,20 @@ export default function CreateProjectForm() {
         id="forgejo-repo"
         className="field"
         placeholder="owner/name"
+        aria-describedby="forgejo-repo-help"
         value={forgejoRepo}
         onChange={(e) => setForgejoRepo(e.target.value)}
         required
       />
+      <p id="forgejo-repo-help" className="text-sm text-muted">
+        Enter the owner and name of an existing repository.
+        {forgejoUrl && <> <a href={forgejoUrl} className="text-accent underline underline-offset-4">Find it in Forgejo</a>.</>}
+      </p>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <button
         type="submit"
         disabled={loading}
-        className="button button-primary"
+        className="button"
       >
         {loading ? "Creating..." : "Create project"}
       </button>

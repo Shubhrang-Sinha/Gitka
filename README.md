@@ -39,6 +39,15 @@ Forgejo and PostgreSQL store their data on local Docker volumes. When OpenRouter
    ```
 6. The app runs at http://localhost:3000.
 
+## Earl Grey theme
+
+Docker Compose defaults Forgejo to Earl Grey using the vendored
+[Earl Grey 1.0.41 stylesheet](forgejo/earl-grey/theme-earl-grey.css) and
+[MIT license](forgejo/earl-grey/LICENSE). The stylesheet is pinned to
+`Troplo/earl-grey@9b5769a3f10b14ffc097add553c0712e6c427ba7`.
+Gitka uses the same dark palette in its own interface. Existing Forgejo
+users with a saved theme can select **Earl Grey** in their appearance settings.
+
 ## Seed the demo
 
 With Docker Compose running and `web/.env.local` configured, run these commands from `web/`:

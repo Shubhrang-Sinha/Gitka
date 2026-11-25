@@ -102,6 +102,25 @@ A logged-in user may only touch projects they have a `project_members` row for.
 
 Copy `app/projects/[id]/page.tsx` and `app/api/projects/[id]/members/route.ts` as examples of this pattern.
 
+## Pull request discussion
+
+Project routes share a header with the active tool and a link to the same
+repository in Forgejo. `web/lib/forgejo-links.ts` builds browser-facing
+repository, PR, and source URLs. Set `FORGEJO_PUBLIC_URL` if the browser uses
+a different Forgejo address from the server-side `FORGEJO_URL`. A browser
+session also needs permission to open a private repository in Forgejo.
+
+Forgejo owns pull requests and their published discussion. Gitka reads the
+current comments through `GET /api/projects/[id]/pulls/[n]/comments` and submits
+new comments through `POST` on the same route. Both operations check Gitka
+project membership. Refreshing the discussion reads Forgejo again. Gitka
+stores no copy of the comments.
+
+Comments submitted from Gitka appear under the account associated with
+`FORGEJO_WRITE_TOKEN`. The Gitka UI discloses this attribution. AI review
+execution and its status remain in PostgreSQL, and published AI reviews
+remain visible in Forgejo.
+
 ## Team chat
 
 Project members can read and send messages at `/projects/[id]/chat`. The client polls
@@ -173,6 +192,8 @@ Rules:
 ```
 DATABASE_URL=postgresql://devplatform:YOUR_PASSWORD@127.0.0.1:5433/devplatform
 FORGEJO_URL=http://localhost:3001
+# Optional when the browser and Gitka server use different addresses:
+# FORGEJO_PUBLIC_URL=https://forgejo.example.test
 FORGEJO_TOKEN=your_forgejo_token_here
 FORGEJO_WRITE_TOKEN=your_forgejo_write_token_here
 FORGEJO_WEBHOOK_SECRET=your_random_secret_here

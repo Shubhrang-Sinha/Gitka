@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,15 +24,16 @@ export default function LoginPage() {
 
       if (!res.ok) {
         setError(data.error ?? "Login failed");
+        setLoading(false);
         return;
       }
-      router.push("/projects");
-      router.refresh();
     } catch {
       setError("Could not reach the server");
-    } finally {
       setLoading(false);
+      return;
     }
+    // Start a new document so an earlier signed-out redirect cannot be reused.
+    window.location.replace("/projects");
   }
 
   return (

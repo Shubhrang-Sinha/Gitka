@@ -1,4 +1,4 @@
-import { forgejoFetch, forgejoFetchText } from "./forgejo";
+import { ForgejoConfigurationError, ForgejoRequestError, forgejoFetch, forgejoFetchText } from "./forgejo";
 
 export type PullRequest = {
   number: number;
@@ -6,7 +6,7 @@ export type PullRequest = {
   body: string;
   state: string;
   user: { login: string };
-  head: { sha: string; ref: string };
+  head: { sha: string; ref: string; repo?: { full_name: string } | null };
   base: { ref: string };
   created_at: string;
 };
@@ -14,12 +14,13 @@ export type PullRequest = {
 export function listPulls(
   repo: string,
   state: "open" | "closed" | "all" = "open",
+  signal?: AbortSignal,
 ) {
-  return forgejoFetch<PullRequest[]>(`/repos/${repo}/pulls?state=${state}`);
+  return forgejoFetch<PullRequest[]>(`/repos/${repo}/pulls?state=${state}`, signal);
 }
 
-export function getPull(repo: string, number: number) {
-  return forgejoFetch<PullRequest>(`/repos/${repo}/pulls/${number}`);
+export function getPull(repo: string, number: number, signal?: AbortSignal) {
+  return forgejoFetch<PullRequest>(`/repos/${repo}/pulls/${number}`, signal);
 }
 
 export async function getPullDiff(
@@ -35,12 +36,44 @@ export async function getPullDiff(
   return diff;
 }
 
-// Write helper: uses the separate write token, only for posting reviews.
-export async function forgejoPost<T>(path: string, body: unknown): Promise<T> {
+export type PullComment = {
+  id: number;
+  body: string;
+  user: { login: string } | null;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+};
+
+function pullCommentsPath(repo: string, number: number) {
+  return `/repos/${repo}/issues/${number}/comments`;
+}
+
+function publicPullComment({ id, body, user, created_at, updated_at, html_url }: PullComment): PullComment {
+  return { id, body, user: user ? { login: user.login } : null, created_at, updated_at, html_url };
+}
+
+export async function listPullComments(repo: string, number: number) {
+  const signal = AbortSignal.timeout(8000);
+  // Forgejo shares this endpoint with issues, so confirm the number is a PR.
+  await getPull(repo, number, signal);
+  const comments = await forgejoFetch<PullComment[]>(pullCommentsPath(repo, number), signal);
+  return comments.map(publicPullComment);
+}
+
+export async function postPullComment(repo: string, number: number, body: string) {
+  const signal = AbortSignal.timeout(8000);
+  await getPull(repo, number, signal);
+  const comment = await forgejoPost<PullComment>(pullCommentsPath(repo, number), { body }, signal);
+  return publicPullComment(comment);
+}
+
+// Write helper: uses the separate write token for comments and reviews.
+export async function forgejoPost<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const url = process.env.FORGEJO_URL;
   const token = process.env.FORGEJO_WRITE_TOKEN;
   if (!url || !token) {
-    throw new Error("FORGEJO_URL or FORGEJO_WRITE_TOKEN is not set");
+    throw new ForgejoConfigurationError("FORGEJO_URL or FORGEJO_WRITE_TOKEN is not set");
   }
   const res = await fetch(`${url}/api/v1${path}`, {
     method: "POST",
@@ -50,11 +83,10 @@ export async function forgejoPost<T>(path: string, body: unknown): Promise<T> {
     },
     body: JSON.stringify(body),
     cache: "no-store",
+    signal,
   });
   if (!res.ok) {
-    throw new Error(
-      `Forgejo POST ${path} failed: ${res.status} ${await res.text()}`,
-    );
+    throw new ForgejoRequestError(res.status, path);
   }
   return (await res.json()) as T;
 }

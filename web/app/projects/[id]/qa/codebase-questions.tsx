@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { CodebaseSource } from "@/lib/codebase-qa";
+import { forgejoSourceFromRepoUrl } from "@/lib/forgejo-links";
 
 type Index = {
   branch: string;
@@ -32,11 +33,13 @@ function Answer({ text }: { text: string }) {
 
 export default function CodebaseQuestions({
   projectId,
+  repoUrl,
   isOwner,
   usesAi,
   initialIndex,
 }: {
   projectId: string;
+  repoUrl: string | null;
   isOwner: boolean;
   usesAi: boolean;
   initialIndex: Index | null;
@@ -88,7 +91,7 @@ export default function CodebaseQuestions({
   return (
     <div className="space-y-6">
       <section className="flex flex-wrap items-center justify-between gap-3 border-y border-line py-4">
-        <div aria-live="polite">
+        <div aria-live="polite" className="min-w-0 wrap-anywhere">
           {index ? (
             <>
               <p className="text-sm">
@@ -142,27 +145,45 @@ export default function CodebaseQuestions({
       {index?.file_count === 0 && <p>This snapshot contains no eligible source files.</p>}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
 
+      <p className="sr-only" role="status">
+        {pending === "ask" ? "Searching the codebase." : result ? "Search results available." : ""}
+      </p>
       {result && (
-        <section aria-label="Search result" aria-live="polite" className="space-y-4">
+        <section aria-label="Search result" className="space-y-4">
           {result.answer && <Answer text={result.answer} />}
           {result.notice && <p>{result.notice}</p>}
           {result.sources.length > 0 && (
             <>
               <h2 className="font-semibold">Sources from <code className="text-sm">{result.commit.slice(0, 12)}</code></h2>
               <ol className="space-y-2">
-                {result.sources.map((source, position) => (
-                  <li key={`${source.path}:${source.start_line}`}>
-                    <details className="rounded-md border border-line">
-                      <summary className="cursor-pointer px-3 py-2 text-sm wrap-anywhere">
-                        <span className="mr-2 opacity-80">[{position + 1}]</span>
-                        <code>{source.path}:{source.start_line}–{source.end_line}</code>
-                      </summary>
-                      <pre className="overflow-x-auto border-t border-line p-3 text-xs">
-                        <code>{source.content}</code>
-                      </pre>
-                    </details>
-                  </li>
-                ))}
+                {result.sources.map((source, position) => {
+                  const sourceHref = forgejoSourceFromRepoUrl(
+                    repoUrl,
+                    "commit",
+                    result.commit,
+                    source.path,
+                    source.start_line,
+                    source.end_line,
+                  );
+                  return (
+                    <li key={`${source.path}:${source.start_line}`} className="rounded-md border border-line bg-panel">
+                      <details>
+                        <summary className="min-h-11 cursor-pointer px-3 py-3 text-sm wrap-anywhere">
+                          <span className="mr-2 text-muted">[{position + 1}]</span>
+                          <code>{source.path}:{source.start_line}–{source.end_line}</code>
+                        </summary>
+                        <pre className="overflow-x-auto border-t border-line p-3 text-xs">
+                          <code>{source.content}</code>
+                        </pre>
+                      </details>
+                      {sourceHref && (
+                        <a href={sourceHref} className="inline-flex min-h-11 items-center px-3 text-sm text-accent underline underline-offset-4">
+                          Open source in Forgejo<span className="sr-only">: {source.path}, line {source.start_line}</span>
+                        </a>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             </>
           )}

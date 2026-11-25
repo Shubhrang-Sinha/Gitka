@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import Chat from "./chat";
+
+export const metadata: Metadata = { title: "Team chat" };
 
 async function ChatPageContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,19 +18,16 @@ async function ChatPageContent({ params }: { params: Promise<{ id: string }> }) 
   );
   if (!project.rowCount) notFound();
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-4 px-5 py-8 sm:px-8">
-      <Link href={`/projects/${id}`} className="text-sm underline">
-        ← {project.rows[0].name}
-      </Link>
+    <main className="mx-auto w-full max-w-4xl space-y-4 px-5 py-8 sm:px-8">
       <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">Team chat</h1>
-      <Chat projectId={id} />
+      <Chat key={id} projectId={id} />
     </main>
   );
 }
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<p className="p-8">Loading...</p>}>
+    <Suspense fallback={<p role="status" className="p-8">Loading team chat…</p>}>
       <ChatPageContent params={params} />
     </Suspense>
   );

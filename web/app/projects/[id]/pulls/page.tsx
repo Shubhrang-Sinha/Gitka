@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { forgejoRepoUrl } from "@/lib/forgejo-links";
 import { listPulls, type PullRequest } from "@/lib/forgejo-pulls";
+
+export const metadata = { title: "Pull requests" };
 
 type StateFilter = "open" | "closed" | "all";
 
@@ -33,7 +36,7 @@ async function PullsContent({
   }
 
   const result = await pool.query(
-    `SELECT p.id, p.name, p.forgejo_repo
+    `SELECT p.id, p.forgejo_repo
        FROM projects p
        JOIN project_members pm ON pm.project_id = p.id
       WHERE p.id = $1 AND pm.user_id = $2`,
@@ -50,10 +53,10 @@ async function PullsContent({
   let pulls: PullRequest[] = [];
   let loadError: string | null = null;
   try {
-    pulls = await listPulls(project.forgejo_repo, state);
+    pulls = await listPulls(project.forgejo_repo, state, AbortSignal.timeout(8000));
   } catch (error) {
     console.error("Forgejo PR list failed:", error);
-    loadError = "Could not load pull requests from Forgejo.";
+    loadError = "Could not load pull requests from Forgejo. Reload the page to try again.";
   }
 
   // Latest review status per PR, so the list can show a badge.
@@ -69,16 +72,13 @@ async function PullsContent({
   );
 
   const tabs: StateFilter[] = ["open", "closed", "all"];
+  const forgejoLink = forgejoRepoUrl(project.forgejo_repo, "pulls");
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-8 sm:px-8">
-      <Link href={`/projects/${project.id}`} className="text-sm underline">
-        ← {project.name}
-      </Link>
-
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">Pull requests</h1>
-        <p className="text-sm text-muted">{project.forgejo_repo}</p>
+    <div className="mx-auto w-full max-w-5xl space-y-6 px-5 py-7 sm:px-8">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Pull requests</h1>
+        {forgejoLink && <a href={forgejoLink} className="button">Open pull requests in Forgejo</a>}
       </header>
 
       <nav aria-label="Filter pull requests" className="flex flex-wrap gap-2">
@@ -94,20 +94,23 @@ async function PullsContent({
         ))}
       </nav>
 
-      {loadError && <p className="text-danger">{loadError}</p>}
+      {loadError && <p role="alert" className="rounded-xl border border-line bg-panel p-5 text-danger">{loadError}</p>}
 
       {!loadError &&
         (pulls.length === 0 ? (
-          <p className="text-muted">No {state === "all" ? "" : state} pull requests.</p>
+          <div className="space-y-2 rounded-xl border border-line bg-panel p-5">
+            <p className="font-semibold">No {state === "all" ? "" : `${state} `}pull requests.</p>
+            {forgejoLink && <p className="text-sm text-muted">To start a pull request, open the list in Forgejo and select New Pull Request.</p>}
+          </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="divide-y divide-line rounded-xl border border-line bg-panel">
             {pulls.map((pr) => {
               const status = reviewStatus.get(pr.number);
               return (
-                <li key={pr.number}>
+                <li key={pr.number} className="first:rounded-t-[inherit] last:rounded-b-[inherit]">
                   <Link
                     href={`/projects/${project.id}/pulls/${pr.number}`}
-                    className="block rounded border border-line p-3 hover:border-accent hover:bg-panel"
+                    className="block rounded-[inherit] p-4 hover:bg-background"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 wrap-anywhere font-semibold">
@@ -128,7 +131,7 @@ async function PullsContent({
             })}
           </ul>
         ))}
-    </main>
+    </div>
   );
 }
 
@@ -140,7 +143,7 @@ export default function PullsPage({
   searchParams: Promise<{ state?: string | string[] }>;
 }) {
   return (
-    <Suspense fallback={<p className="p-8">Loading...</p>}>
+    <Suspense fallback={<p role="status" className="p-8 text-muted">Loading pull requests…</p>}>
       <PullsContent params={params} searchParams={searchParams} />
     </Suspense>
   );

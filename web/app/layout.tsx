@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gitka",
+  title: { default: "Gitka", template: "%s · Gitka" },
   description: "Pull request reviews, team chat, and codebase Q&A for Forgejo projects.",
 };
 
@@ -25,15 +25,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-md focus:bg-panel focus:px-4 focus:py-2 focus:text-foreground"
+        >
+          Skip to content
+        </a>
         <header className="border-b border-line bg-panel">
-          <div className="mx-auto flex min-h-14 w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-8">
+          <nav aria-label="Application" className="mx-auto flex min-h-14 w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-8">
             <Link href="/" className="text-lg font-bold tracking-tight">Gitka</Link>
             <Link href="/projects" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent">
               Projects
             </Link>
-          </div>
+          </nav>
         </header>
-        {children}
+        <div id="main-content" tabIndex={-1} className="flex-1">
+          {children}
+        </div>
       </body>
     </html>
   );

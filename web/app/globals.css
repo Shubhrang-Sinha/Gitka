@@ -15,31 +15,17 @@
 }
 
 :root {
-  color-scheme: light;
-  --background: #f6f8fa;
-  --foreground: #17202b;
-  --panel: #ffffff;
-  --line: #c2ccd6;
-  --control: #7b8896;
-  --muted: #4e6072;
-  --accent: #174a74;
-  --accent-ink: #ffffff;
-  --danger: #a32635;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: #101720;
-    --foreground: #eef3f8;
-    --panel: #182431;
-    --line: #526579;
-    --control: #7d90a5;
-    --muted: #b3c3d2;
-    --accent: #a4d2ff;
-    --accent-ink: #112638;
-    --danger: #ff9ba8;
-  }
+  /* Earl Grey 1.0.41 palette, adapted to Gitka's semantic roles. */
+  color-scheme: dark;
+  --background: #1d1f23;
+  --foreground: #d5dbe6;
+  --panel: #24262b;
+  --line: #3f424d;
+  --control: #737b8f;
+  --muted: #a6aab5;
+  --accent: #8eb8f2;
+  --accent-ink: #141820;
+  --danger: #ffa2ae;
 }
 
 @layer base {

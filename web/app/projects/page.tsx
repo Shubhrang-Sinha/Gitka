@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { pool } from "@/lib/db";
+import { forgejoHomeUrl, forgejoRepoUrl } from "@/lib/forgejo-links";
 import { getCurrentUser } from "@/lib/session";
 import CreateProjectForm from "./create-project-form";
 import LogoutButton from "./logout-button";
+
+export const metadata: Metadata = { title: "Projects" };
 
 type ReviewStatus = "pending" | "done" | "failed";
 type Project = {
@@ -44,61 +48,59 @@ async function ProjectsContent() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8">
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-gray-300 pb-5 dark:border-gray-700">
-        <h1 className="text-2xl font-bold tracking-tight wrap-anywhere">Your projects</h1>
+    <main className="mx-auto w-full max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-5">
+        <h1 className="text-3xl font-bold tracking-tight wrap-anywhere sm:text-4xl">Your projects</h1>
         <div className="flex min-w-0 flex-wrap items-center gap-3 text-sm">
           <span className="break-all text-muted">{user.display_name}</span>
           <LogoutButton />
         </div>
       </header>
 
-      <div className="grid items-start gap-8 md:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,19rem)]">
         <section aria-label="Project list" className="min-w-0">
           {projects.length === 0 ? (
-            <p className="rounded-xl border border-gray-300 p-5 text-sm text-muted dark:border-gray-700 dark:text-gray-400">
+            <p className="rounded-xl border border-line bg-panel p-5 text-sm text-muted">
               Link a Forgejo repository to create your first project.
             </p>
           ) : (
-            <ul className="divide-y divide-line border-y border-line">
+            <ul className="overflow-hidden rounded-xl border border-line bg-panel divide-y divide-line">
               {projects.map((project) => {
                 const href = `/projects/${project.id}`;
+                const repoUrl = forgejoRepoUrl(project.forgejo_repo);
                 return (
-                  <li key={project.id} className="py-4">
-                    <div className="flex items-start justify-between gap-3">
+                  <li key={project.id} className="p-5 sm:p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h2 className="break-words font-semibold">
-                          <Link href={href} className="underline-offset-4 hover:underline">
-                            {project.name}
-                          </Link>
-                        </h2>
-                        <p className="break-all text-sm text-muted">
+                        <h2 className="text-xl font-semibold tracking-tight wrap-anywhere">{project.name}</h2>
+                        <p className="mt-1 break-all font-mono text-xs text-muted">
                           {project.forgejo_repo}
                         </p>
                       </div>
-                      <span className="text-sm capitalize text-muted">{project.role}</span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-                      <Link href={`${href}/pulls`} className="underline underline-offset-4">Pull requests</Link>
-                      <Link href={`${href}/chat`} className="underline underline-offset-4">Team chat</Link>
-                      <Link href={`${href}/qa`} className="underline underline-offset-4">Codebase Q&amp;A</Link>
+                      <span className="rounded-full border border-line px-2.5 py-1 text-xs capitalize text-muted">{project.role}</span>
                     </div>
                     {project.pr_number !== null && project.review_status && (
-                      <p className="mt-3 text-sm text-muted">
-                        Latest review <Link href={`${href}/pulls/${project.pr_number}`} className="underline underline-offset-4">
-                          #{project.pr_number}
+                      <p className="mt-4 flex flex-wrap items-center gap-x-2 text-sm text-muted">
+                        <Link href={`${href}/pulls/${project.pr_number}`} aria-label={`Latest review for ${project.name}, pull request #${project.pr_number}`} className="inline-flex min-h-9 items-center font-medium text-accent underline underline-offset-4">
+                          Latest review #{project.pr_number}
                         </Link>
-                        <span className="mx-2" aria-hidden="true">·</span>
+                        <span aria-hidden="true">·</span>
                         {reviewLabels[project.review_status]}
                       </p>
                     )}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Link href={href} aria-label={`Open project ${project.name}`} className="button button-primary">
+                        Open project
+                      </Link>
+                      {repoUrl && <a href={repoUrl} aria-label={`Open ${project.forgejo_repo} in Forgejo`} className="button">Open in Forgejo</a>}
+                    </div>
                   </li>
                 );
               })}
             </ul>
           )}
         </section>
-        <CreateProjectForm />
+        <CreateProjectForm forgejoUrl={forgejoHomeUrl()} />
       </div>
     </main>
   );

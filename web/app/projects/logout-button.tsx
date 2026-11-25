@@ -1,10 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function LogoutButton() {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
 
@@ -14,8 +12,7 @@ export default function LogoutButton() {
     try {
       const response = await fetch("/api/auth/logout", { method: "POST" });
       if (!response.ok) throw new Error("Logout failed");
-      router.replace("/login");
-      router.refresh();
+      window.location.replace("/login");
     } catch {
       setError(true);
       setPending(false);
