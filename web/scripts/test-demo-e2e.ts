@@ -32,7 +32,6 @@ assert(readToken, "FORGEJO_TOKEN is required");
 if (option === "--write") assert(writeToken, "FORGEJO_WRITE_TOKEN is required with --write");
 const credentials = JSON.parse(await readFile(new URL("../.env.demo.json", import.meta.url), "utf8")) as {
   owner: Account;
-  member: Account;
 };
 
 const detail = `/projects/${projectId}/pulls/${pr}`;
@@ -58,7 +57,8 @@ function post(value: unknown, headers: Record<string, string> = {}): RequestInit
   };
 }
 
-async function testRole(role: "owner" | "member") {
+async function testOwner() {
+  const role = "owner";
   const login = await request(`${role} login`, app, "/api/auth/login", 200, post(credentials[role]));
   const cookie = login.headers.get("set-cookie")?.split(";", 1)[0];
   assert(cookie && cookie.startsWith("session_id="), "Login must set the session cookie");
@@ -76,7 +76,7 @@ async function testRole(role: "owner" | "member") {
     await request(`${role} reads discussion`, app, discussion, 200, { headers });
     await request(`${role} blank comment rejected`, app, discussion, 400, post({ body: "   " }, headers));
 
-    if (role === "owner" && option === "--write") {
+    if (option === "--write") {
       const marker = randomUUID();
       const gitkaBody = `Gitka E2E ${marker}`;
       const forgejoBody = `Forgejo E2E ${marker}`;
@@ -107,5 +107,4 @@ async function testRole(role: "owner" | "member") {
 
 await request("Signed-out discussion read rejected", app, discussion, 401);
 await request("Signed-out comment write rejected", app, discussion, 401, post({ body: "Signed-out test" }));
-await testRole("owner");
-await testRole("member");
+await testOwner();

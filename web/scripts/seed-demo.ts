@@ -1,4 +1,7 @@
-import { randomBytes } from "node:crypto";
+import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { readFile, writeFile } from "node:fs/promises";
 import type { PoolClient } from "pg";
 import { indexCodebase } from "../lib/codebase-index";
@@ -18,30 +21,73 @@ export function nextLanternCheck(now: Date, interval = DEFAULT_INTERVAL_MINUTES)
 `;
 
 type Account = { email: string; password: string };
-type Credentials = { owner: Account; member: Account };
+
 type Repository = { full_name: string; description: string; default_branch: string; private: boolean };
 type Pull = { number: number; state: string; head: { sha: string; ref: string }; base: { ref: string } };
 
-async function demoCredentials(): Promise<Credentials> {
-  const suffix = randomBytes(4).toString("hex");
-  const candidate = {
-    owner: { email: `demo-owner-${suffix}@example.test`, password: randomBytes(18).toString("base64url") },
-    member: { email: `demo-member-${suffix}@example.test`, password: randomBytes(18).toString("base64url") },
-  };
-  try {
-    await writeFile(credentialsFile, JSON.stringify(candidate, null, 2) + "\n", { flag: "wx", mode: 0o600 });
-    return candidate;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    return JSON.parse(await readFile(credentialsFile, "utf8")) as Credentials;
+const username = "gitka-demo";
+const email = "test@thapar.edu";
+const envFile = new URL("../.env.local", import.meta.url);
+const run = promisify(execFile);
+
+async function bootstrapForgejo(base: URL, account: Account) {
+  const api = (path: string) => new URL(`api/v1${path}`, base);
+  const basic = "Basic " + Buffer.from(`${username}:${account.password}`).toString("base64");
+  const identity = (authorization: string) => fetch(api("/user"), {
+    headers: { Authorization: authorization },
+    signal: AbortSignal.timeout(10000),
+  });
+  const compose = ["compose", "exec", "-T", "--user", "git", "forgejo", "forgejo", "admin", "user"];
+  if (!(await identity(basic)).ok) {
+    const cwd = fileURLToPath(new URL("../../", import.meta.url));
+    try {
+      await run("docker", [...compose, "create", "--username", username, "--email", email,
+        "--password", account.password, "--must-change-password=false"], { cwd });
+    } catch {
+      throw new Error("Could not create the local Forgejo demo account. Check that Compose is running and the account does not already have a different password.");
+    }
   }
+  const verified = await identity(basic);
+  if (!verified.ok) throw new Error("Could not sign in to Forgejo as the demo account.");
+  const user = await verified.json() as { login: string; email: string };
+  if (user.login !== username || user.email !== email) {
+    throw new Error("The Forgejo demo account has an unexpected identity.");
+  }
+
+  const env = await readFile(envFile, "utf8");
+  let updated = env;
+  for (const [key, scopes] of [
+    ["FORGEJO_TOKEN", ["read:user", "read:repository", "read:issue"]],
+    ["FORGEJO_WRITE_TOKEN", ["read:user", "write:repository", "write:issue"]],
+  ] as const) {
+    const previous = process.env[key];
+    if (previous) {
+      const response = await identity("token " + previous);
+      if (response.ok && (await response.json() as { login: string }).login === username) continue;
+    }
+    const response = await fetch(api(`/users/${username}/tokens`), {
+      method: "POST",
+      headers: { Authorization: basic, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: `gitka-demo-${key.toLowerCase()}-${randomUUID()}`, scopes }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error(`Could not create ${key}: Forgejo returned HTTP ${response.status}.`);
+    const { sha1: token } = await response.json() as { sha1: string };
+    if (!token) throw new Error(`Forgejo did not return ${key}.`);
+    process.env[key] = token;
+    const setting = new RegExp(`^${key}=.*$`, "m");
+    updated = setting.test(updated) ? updated.replace(setting, `${key}=${token}`)
+      : `${updated.trimEnd()}\n${key}=${token}\n`;
+    await writeFile(envFile, updated, { mode: 0o600 });
+  }
+  return basic;
 }
 
-function forgejoClient(base: URL, token: string) {
+function forgejoClient(base: URL, authorization: string) {
   return async function request<T>(path: string, method = "GET", body?: object, allowMissing = false): Promise<T | null> {
     const response = await fetch(new URL(`api/v1${path}`, base), {
       method,
-      headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
+      headers: { Authorization: authorization, "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(15_000),
     });
@@ -119,9 +165,8 @@ async function ensureUser(client: PoolClient, account: Account, name: string) {
   return user.id;
 }
 
-async function seedProject(client: PoolClient, credentials: Credentials, repository: string, archived: Pull) {
-  const owner = await ensureUser(client, credentials.owner, "Demo Owner");
-  const member = await ensureUser(client, credentials.member, "Demo Teammate");
+async function seedProject(client: PoolClient, account: Account, repository: string, archived: Pull) {
+  const owner = await ensureUser(client, account, "Demo Owner");
   const { rows: [created] } = await client.query<{ id: string }>(
     "INSERT INTO projects (name, forgejo_repo) VALUES ($1, $2) ON CONFLICT (forgejo_repo) DO NOTHING RETURNING id",
     [projectName, repository],
@@ -138,22 +183,14 @@ async function seedProject(client: PoolClient, credentials: Credentials, reposit
     if (!existing) throw new Error("The demo repository is already linked to a project owned by another account.");
     projectId = existing.id;
   }
+  const message = "Try reviewing the open pull request, then ask Codebase Q&A about the default lantern inspection interval.";
   await client.query(
-    "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
-    [projectId, member],
+    `INSERT INTO project_chat_messages (project_id, user_id, body)
+     SELECT $1, $2, $3 WHERE NOT EXISTS (
+       SELECT 1 FROM project_chat_messages WHERE project_id = $1 AND user_id = $2 AND body = $3
+     )`,
+    [projectId, owner, message],
   );
-  for (const [user, message] of [
-    [owner, "Can you review the pull request that adds a custom lantern interval?"],
-    [member, "I’ll check the existing schedule first. Codebase Q&A can point me to the default interval."],
-  ]) {
-    await client.query(
-      `INSERT INTO project_chat_messages (project_id, user_id, body)
-       SELECT $1, $2, $3 WHERE NOT EXISTS (
-         SELECT 1 FROM project_chat_messages WHERE project_id = $1 AND user_id = $2 AND body = $3
-       )`,
-      [projectId, user, message],
-    );
-  }
   await client.query(
     `INSERT INTO pr_reviews (project_id, pr_number, head_sha, status, summary, model, created_by)
      VALUES ($1, $2, $3, 'done', $4, 'demo-fixture', $5)
@@ -172,10 +209,11 @@ async function seedProject(client: PoolClient, credentials: Credentials, reposit
 
 async function main() {
   const url = process.env.FORGEJO_URL;
-  const token = process.env.FORGEJO_SEED_TOKEN || process.env.FORGEJO_WRITE_TOKEN;
-  if (!url || !token || !process.env.DATABASE_URL) {
-    throw new Error("Set DATABASE_URL, FORGEJO_URL, and a Forgejo write token in .env.local.");
+  const password = process.env.GITKA_DEMO_PASSWORD;
+  if (!url || !password || !process.env.DATABASE_URL) {
+    throw new Error("Set DATABASE_URL, FORGEJO_URL, and GITKA_DEMO_PASSWORD in .env.local.");
   }
+  const account = { email, password };
   const base = new URL(url.replace(/\/?$/, "/"));
   const database = new URL(process.env.DATABASE_URL);
   if (![base, database].every(({ hostname }) => ["localhost", "127.0.0.1", "[::1]"].includes(hostname))) {
@@ -187,14 +225,9 @@ async function main() {
   try {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock($1)", [163621792]);
-    const credentials = await demoCredentials();
-    const request = forgejoClient(base, token);
-    const user = process.env.FORGEJO_SEED_TOKEN
-      ? await request<{ login: string }>("/user")
-      : await forgejoFetch<{ login: string }>("/user");
-    if (!user?.login) throw new Error("Could not identify the Forgejo account.");
-    demo = await seedRepository(request, user.login);
-    projectId = await seedProject(client, credentials, demo.repository, demo.archived);
+    const basic = await bootstrapForgejo(base, account);
+    demo = await seedRepository(forgejoClient(base, basic), username);
+    projectId = await seedProject(client, account, demo.repository, demo.archived);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -207,7 +240,8 @@ async function main() {
   console.log(`Demo project: http://localhost:3000/projects/${projectId}`);
   console.log(`Forgejo repository: ${new URL(demo.repository, base)}`);
   console.log(`Open PR #${demo.open.number} · Closed PR #${demo.archived.number} · ${index.file_count} indexed files`);
-  console.log("Owner and teammate sign-in details: web/.env.demo.json");
+  await writeFile(credentialsFile, JSON.stringify({ owner: account }, null, 2) + "\n", { mode: 0o600 });
+  console.log(`Demo sign-in for both apps: ${email}. Password is stored in web/.env.demo.json.`);
 }
 
 main().catch((error: unknown) => {
