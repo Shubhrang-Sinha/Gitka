@@ -121,7 +121,7 @@ export async function resolveRepositoryHead(repository: string, signal = AbortSi
   return { branch: repo.default_branch, commit };
 }
 
-export async function indexCodebase(projectId: string, repository: string, userId?: string) {
+export async function indexCodebase(projectId: string, repository: string, userId?: string, job?: { id: string; token: string }) {
   const repoPath = `/repos/${repository.split("/").map(encodeURIComponent).join("/")}`;
   const signal = AbortSignal.timeout(60_000);
   const client = await pool.connect();
@@ -139,6 +139,10 @@ export async function indexCodebase(projectId: string, repository: string, userI
     const existing = await client.query<Snapshot>("SELECT * FROM codebase_indexes WHERE project_id = $1", [projectId]);
     const previous = existing.rows[0];
     if (previous?.commit_sha === commit && previous.branch === branch && previous.embedding_model === model) {
+      if (job) {
+        const owned = await client.query("UPDATE qa_index_jobs SET status = 'done', lease_until = NULL, updated_at = now() WHERE id = $1 AND lease_token = $2 AND status = 'running' RETURNING id", [job.id, job.token]);
+        if (!owned.rowCount) throw new IndexError("Index job was cancelled or replaced.", 409);
+      }
       await client.query("COMMIT");
       return previous;
     }
@@ -147,6 +151,10 @@ export async function indexCodebase(projectId: string, repository: string, userI
     const chunks: Chunk[] = [];
     let bounded = limited;
     for (let offset = 0; offset < files.length; offset += 8) {
+      if (job) {
+        const owned = await client.query("SELECT 1 FROM qa_index_jobs WHERE id = $1 AND lease_token = $2 AND status = 'running'", [job.id, job.token]);
+        if (!owned.rowCount) throw new IndexError("Index job was cancelled or replaced.", 409);
+      }
       const batch = await Promise.all(files.slice(offset, offset + 8).map((file) => readFile(repoPath, file, signal, userId)));
       chunks.push(...batch.flat());
       if (chunks.length > MAX_CHUNKS || (chunks.length === MAX_CHUNKS && offset + 8 < files.length)) {
@@ -157,6 +165,10 @@ export async function indexCodebase(projectId: string, repository: string, userI
     }
 
     const fileCount = new Set(chunks.map((chunk) => chunk.path)).size;
+    if (job) {
+      const owned = await client.query("SELECT 1 FROM qa_index_jobs WHERE id = $1 AND lease_token = $2 AND status = 'running'", [job.id, job.token]);
+      if (!owned.rowCount) throw new IndexError("Index job was cancelled or replaced.", 409);
+    }
     const embeddings = model && chunks.length
       ? (await embedMany({
         model: createOpenRouter({ apiKey: key }).embedding(model),
@@ -168,6 +180,10 @@ export async function indexCodebase(projectId: string, repository: string, userI
       : null;
     if (embeddings && embeddings.length !== chunks.length) throw new Error("Embedding provider returned an incomplete batch");
 
+    if (job) {
+      const owned = await client.query("SELECT 1 FROM qa_index_jobs WHERE id = $1 AND lease_token = $2 AND status = 'running' FOR UPDATE", [job.id, job.token]);
+      if (!owned.rowCount) throw new IndexError("Index job was cancelled or replaced.", 409);
+    }
     await client.query("DELETE FROM codebase_indexes WHERE project_id = $1", [projectId]);
     const snapshot = await client.query<Snapshot>(
       `INSERT INTO codebase_indexes (project_id, commit_sha, branch, embedding_model, file_count, limited)
@@ -183,6 +199,7 @@ export async function indexCodebase(projectId: string, repository: string, userI
         ...chunk, embedding: embeddings ? vectorLiteral(embeddings[i]) : null,
       })))],
     );
+    if (job) await client.query("UPDATE qa_index_jobs SET status = 'done', lease_until = NULL, updated_at = now() WHERE id = $1 AND lease_token = $2", [job.id, job.token]);
     await client.query("COMMIT");
     return snapshot.rows[0];
   } catch (error) {

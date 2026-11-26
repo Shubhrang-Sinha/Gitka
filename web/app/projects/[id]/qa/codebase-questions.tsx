@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { CodebaseSource } from "@/lib/codebase-qa";
 import { forgejoSourceFromRepoUrl } from "@/lib/forgejo-links";
 type Index = { branch: string; commit_sha: string; file_count: number; limited: boolean; embedding_model: string | null };
-type Job = { status: "pending" | "running" | "done" | "failed"; error: string | null; updated_at: string; waiting_for_worker: boolean };
+type Job = { status: "pending" | "running" | "done" | "failed" | "cancelled"; error: string | null; updated_at: string; waiting_for_worker: boolean };
 type Conversation = { id: string; title: string };
 type Message = { id: string; role: "user" | "assistant"; content: string; commit_sha: string | null; sources: CodebaseSource[] };
 type State = { index: Index | null; job: Job | null; current: boolean | null; indexError: string | null; conversations: Conversation[]; messages: Message[] };
@@ -23,6 +23,7 @@ export default function CodebaseQuestions({ projectId, repoUrl, isOwner, usesAi 
   useEffect(() => { let cancelled = false; const timer = setTimeout(() => { load(conversation).catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Could not load the assistant."); }); }, 0); return () => { cancelled = true; clearTimeout(timer); }; }, [conversation, load]);
   useEffect(() => { if (state?.job?.status !== "pending" && state?.job?.status !== "running") return; const timer = setInterval(() => { load(conversation, false).catch(() => {}); }, 4000); return () => clearInterval(timer); }, [state?.job?.status, conversation, load]);
   async function refreshIndex() { setError(""); try { const response = await fetch(`${endpoint}/index`, { method: "POST" }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? "Could not refresh the index."); await load(conversation, false); } catch (e) { setError(e instanceof Error ? e.message : "Could not refresh the index."); } }
+  async function cancelIndex() { setError(""); try { const response = await fetch(`${endpoint}/index`, { method: "DELETE" }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? "Could not cancel indexing."); await load(conversation, false); } catch (e) { setError(e instanceof Error ? e.message : "Could not cancel indexing."); } }
   async function ask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError("");
     try { const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, conversationId: conversation }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? "Could not get an answer."); setQuestion(""); if (conversation !== data.conversationId) setConversation(data.conversationId); else await load(data.conversationId); }
@@ -40,7 +41,8 @@ export default function CodebaseQuestions({ projectId, repoUrl, isOwner, usesAi 
         : <p className="mt-1 text-muted">Keyword search only; semantic search is not configured.</p>)}
       {(state?.job?.status === "pending" || state?.job?.status === "running") && <p className="mt-1 text-muted">{state.job.waiting_for_worker ? "Index job is waiting for a worker. Check that the Q&A worker is running." : "Preparing repository index in the background…"}</p>}
       {state?.job?.status === "failed" && state.current === false && <p className="mt-1 text-danger">{state.job.error}</p>}{state?.indexError && <p className="mt-1 text-danger">{state.indexError}</p>}
-      </div>{isOwner && <button type="button" className="button" onClick={refreshIndex}>Refresh index</button>}</section>
+      {state?.job?.status === "cancelled" && <p className="mt-1 text-muted">Indexing cancelled. Refresh the index to try again.</p>}
+      </div>{isOwner && (state?.job?.status === "pending" || state?.job?.status === "running" ? <button type="button" className="button" onClick={cancelIndex}>Cancel indexing</button> : <button type="button" className="button" onClick={refreshIndex}>Refresh index</button>)}</section>
       {conversation && <div className="flex justify-end"><button type="button" onClick={removeConversation} disabled={busy} className="text-sm text-muted underline underline-offset-4 hover:text-danger">Delete conversation</button></div>}
       <section aria-label="Conversation" aria-live="polite" className="space-y-5">{!state?.messages.length && <p className="text-sm text-muted">Ask about the code, or start a conversation. The assistant can inspect the indexed repository and cite its sources.</p>}
         {state?.messages.map((message) => <article key={message.id} className="rounded-xl border border-line bg-panel p-4"><h2 className="mb-2 text-sm font-semibold">{message.role === "user" ? "You" : "Assistant"}</h2><div className="whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed">{message.content}</div>

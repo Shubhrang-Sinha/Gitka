@@ -56,6 +56,11 @@ async function HomeContent() {
       ORDER BY r.created_at DESC, r.id DESC LIMIT 8`,
     [projects.map((project) => project.id)],
   );
+  const { rows: [activity] } = await pool.query<{ messages: string; failures: string }>(
+    `SELECT (SELECT count(*) FROM project_chat_messages WHERE project_id = ANY($1::bigint[])) AS messages,
+            (SELECT count(*) FROM pr_reviews WHERE project_id = ANY($1::bigint[]) AND status = 'failed') AS failures`,
+    [projects.map((project) => project.id)],
+  );
   const forgejoUrl = forgejoHomeUrl();
   const initial = (user.display_name as string).trim().charAt(0).toUpperCase() || "?";
 
@@ -73,6 +78,15 @@ async function HomeContent() {
         </aside>
 
         <div className="min-w-0 space-y-10">
+          <section aria-labelledby="summary-heading">
+            <h2 id="summary-heading" className="text-xl font-semibold">Activity summary</h2>
+            <p className="mt-1 text-sm text-muted">Across your accessible projects, all time.</p>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-line bg-panel p-4"><dt className="text-sm text-muted">Chat messages</dt><dd className="mt-1 text-2xl font-semibold">{activity.messages}</dd></div>
+              <div className="rounded-lg border border-line bg-panel p-4"><dt className="text-sm text-muted">Failed reviews</dt><dd className="mt-1 text-2xl font-semibold">{activity.failures}</dd></div>
+              <div className="rounded-lg border border-line bg-panel p-4"><dt className="text-sm text-muted">Review latency</dt><dd className="mt-1 text-sm">Not measured</dd></div>
+            </dl>
+          </section>
           <section aria-labelledby="projects-heading">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><h2 id="projects-heading" className="text-xl font-semibold">Your projects</h2><p className="mt-1 text-sm text-muted">Repositories you have access to in Gitka.</p></div>

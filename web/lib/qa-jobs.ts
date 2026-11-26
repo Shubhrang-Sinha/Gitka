@@ -1,9 +1,9 @@
 import { pool } from "./db";
-import { codebaseEmbeddingModel, getIndex, indexCodebase, resolveRepositoryHead } from "./codebase-index";
+import { codebaseEmbeddingModel, getIndex, indexCodebase, IndexError, resolveRepositoryHead } from "./codebase-index";
 
 export async function getJob(projectId: string) {
   const { rows } = await pool.query(
-    `SELECT status, requested_commit, embedding_model, error, updated_at, (status = 'pending' AND updated_at < now() - interval '1 minute') AS waiting_for_worker FROM qa_index_jobs WHERE project_id = $1 ORDER BY id DESC LIMIT 1`, [projectId],
+    `SELECT CASE WHEN status = 'failed' AND error = 'Cancelled by project owner.' THEN 'cancelled' ELSE status END AS status, requested_commit, embedding_model, error, updated_at, (status = 'pending' AND updated_at < now() - interval '1 minute') AS waiting_for_worker FROM qa_index_jobs WHERE project_id = $1 ORDER BY id DESC LIMIT 1`, [projectId],
   );
   return rows[0] ?? null;
 }
@@ -14,13 +14,18 @@ export async function ensureIndexJob(projectId: string, repo: string, userId: st
   const index = await getIndex(projectId);
   if (index?.commit_sha === commit && index.embedding_model === model) return { index, job: await getJob(projectId), current: true };
   const last = await getJob(projectId);
-  if (!retry && last?.status === "failed" && last.requested_commit === commit && last.embedding_model === model) return { index, job: last, current: false };
+  if (!retry && ["failed", "cancelled"].includes(last?.status) && last.requested_commit === commit && last.embedding_model === model) return { index, job: last, current: false };
   await pool.query(
     `INSERT INTO qa_index_jobs (project_id, requested_commit, embedding_model)
      VALUES ($1, $2, $3) ON CONFLICT (project_id) WHERE status IN ('pending', 'running') DO NOTHING`,
     [projectId, commit, model],
   );
   return { index, job: await getJob(projectId), current: false };
+}
+
+export async function cancelIndexJob(projectId: string) {
+  const result = await pool.query(`UPDATE qa_index_jobs SET status = 'failed', error = 'Cancelled by project owner.', lease_token = NULL, lease_until = NULL, updated_at = now() WHERE project_id = $1 AND status IN ('pending', 'running') RETURNING id`, [projectId]);
+  return !!result.rowCount;
 }
 
 export async function runNextIndexJob() {
@@ -41,11 +46,14 @@ export async function runNextIndexJob() {
   if (!job) return false;
   try {
     if (!job.owner_id) throw new Error("No linked project owner is available to index this repository");
-    await indexCodebase(job.project_id, job.forgejo_repo, job.owner_id);
-    await pool.query(`UPDATE qa_index_jobs SET status = 'done', lease_until = NULL, updated_at = now() WHERE id = $1 AND lease_token = $2`, [job.id, job.lease_token]);
+    await indexCodebase(job.project_id, job.forgejo_repo, job.owner_id, { id: job.id, token: job.lease_token });
   } catch (error) {
-    console.error("Index job failed", error instanceof Error ? error.name : "Unknown error");
-    await pool.query(`UPDATE qa_index_jobs SET status = 'failed', lease_until = NULL, error = $3, updated_at = now() WHERE id = $1 AND lease_token = $2`, [job.id, job.lease_token, "Indexing failed. Check the worker configuration and retry."]);
+    if (error instanceof IndexError && error.message === "An index refresh is already running. Try again shortly.") {
+      await pool.query(`UPDATE qa_index_jobs SET status = 'pending', lease_token = NULL, lease_until = NULL, updated_at = now() WHERE id = $1 AND lease_token = $2`, [job.id, job.lease_token]);
+      return false;
+    }
+    const failed = await pool.query(`UPDATE qa_index_jobs SET status = 'failed', lease_until = NULL, error = $3, updated_at = now() WHERE id = $1 AND lease_token = $2 RETURNING id`, [job.id, job.lease_token, "Indexing failed. Check the worker configuration and retry."]);
+    if (failed.rowCount) console.error("Index job failed", error instanceof Error ? error.name : "Unknown error");
   }
   return true;
 }

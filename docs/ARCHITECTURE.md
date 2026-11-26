@@ -19,6 +19,7 @@ Next.js app  ->  OpenRouter API (AI model for PR review)
 - **Forgejo** hosts the git repositories. It has its own SQLite database and is only accessed through its REST API, never directly.
 - **PostgreSQL** stores users, sessions, projects, membership, reviews, chat, and indexed source excerpts.
 - **Next.js** (App Router, TypeScript, Tailwind, run with Bun) is both the UI and the API.
+- **Q&A worker** (`bun run qa:worker`) claims repository indexing jobs from PostgreSQL. Owners can cancel an active job using the Q&A index endpoint; cancellation prevents the worker from publishing that job's snapshot, while the last completed snapshot remains available. The existing failed-job storage representation uses a cancellation marker, exposed as `cancelled` by the API. In-flight remote requests can finish before the worker stops processing the cancelled job.
 
 ## Folder map
 
