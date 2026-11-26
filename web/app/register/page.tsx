@@ -1,16 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import CreateForgejoForm from "../connect-forgejo/create-forgejo-form";
+
+type ProvisionStep = {
+  email: string;
+  suggestedUsername: string;
+};
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [provisionStep, setProvisionStep] = useState<ProvisionStep | null>(null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -29,12 +34,33 @@ export default function RegisterPage() {
         setError(data.error ?? "Registration failed");
         return;
       }
-      router.push("/connect-forgejo");
+
+      if (data.forgejoStatus === "not_found" && data.canProvisionForgejo) {
+        setProvisionStep({
+          email: data.user?.email ?? email.trim().toLowerCase(),
+          suggestedUsername: data.suggestedUsername ?? "gitka-user",
+        });
+        return;
+      }
+
+      window.location.replace("/connect-forgejo");
     } catch {
       setError("Could not reach the server");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (provisionStep) {
+    return (
+      <main>
+        <CreateForgejoForm
+          email={provisionStep.email}
+          suggestedUsername={provisionStep.suggestedUsername}
+          initialPassword={password}
+        />
+      </main>
+    );
   }
 
   return (

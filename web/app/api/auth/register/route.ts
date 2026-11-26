@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import {
+  canProvisionForgejoAccount,
+  checkForgejoEmail,
+  suggestForgejoUsername,
+} from "@/lib/forgejo-onboarding";
 import { hashPassword, MAX_PASSWORD_BYTES } from "@/lib/password";
 import { rateLimit } from "@/lib/rate-limit";
 import { createSession } from "@/lib/session";
@@ -57,8 +62,16 @@ export async function POST(request: Request) {
       [normalizedEmail, passwordHash, name],
     );
     await createSession(result.rows[0].id);
+    const forgejoStatus = await checkForgejoEmail(normalizedEmail);
     return NextResponse.json(
-      { ok: true, user: result.rows[0], connected: false },
+      {
+        ok: true,
+        user: result.rows[0],
+        connected: false,
+        forgejoStatus,
+        canProvisionForgejo: canProvisionForgejoAccount(),
+        suggestedUsername: suggestForgejoUsername(normalizedEmail, name),
+      },
       { status: 201 },
     );
   } catch (error) {

@@ -106,6 +106,46 @@ async function bootstrapForgejo(base: URL, account: Account) {
     updated = setting.test(updated) ? updated.replace(setting, `${key}=${value}`) : `${updated.trimEnd()}\n${key}=${value}\n`;
   }
   await writeFile(envFile, updated, { mode: 0o600 });
+
+  // Ensure an internal Forgejo admin service token for email checks and user provisioning.
+  let adminToken = process.env.FORGEJO_ADMIN_TOKEN?.trim() || "";
+  let adminValid = false;
+  if (adminToken) {
+    const check = await identity("token " + adminToken);
+    if (check.ok && (await check.json() as { is_admin?: boolean }).is_admin === true) {
+      adminValid = true;
+    }
+  }
+  if (!adminValid) {
+    const cwd = fileURLToPath(new URL("../../", import.meta.url));
+    const adminUser = "gitka-admin";
+    const scopes = "write:admin,read:admin,write:user,read:user";
+    const tokenName = `gitka-onboarding-${randomUUID()}`;
+    try {
+      const { stdout } = await run("docker", [
+        ...compose, "generate-access-token",
+        "--username", adminUser, "--token-name", tokenName, "--scopes", scopes, "--raw",
+      ], { cwd });
+      adminToken = stdout.trim().split(/\s+/).at(-1) ?? "";
+    } catch {
+      const { stdout } = await run("docker", [
+        ...compose, "create",
+        "--username", adminUser, "--email", "gitka-admin@gitka.local",
+        "--admin", "--random-password", "--must-change-password=false",
+        "--access-token", "--access-token-name", tokenName, "--access-token-scopes", scopes,
+      ], { cwd });
+      const match = stdout.match(/Access token was successfully created\.\.\.\s+(\S+)/);
+      adminToken = match?.[1] ?? "";
+    }
+    if (!adminToken) throw new Error("Could not provision FORGEJO_ADMIN_TOKEN.");
+    process.env.FORGEJO_ADMIN_TOKEN = adminToken;
+    const setting = /^FORGEJO_ADMIN_TOKEN=.*$/m;
+    updated = setting.test(updated)
+      ? updated.replace(setting, `FORGEJO_ADMIN_TOKEN=${adminToken}`)
+      : `${updated.trimEnd()}\nFORGEJO_ADMIN_TOKEN=${adminToken}\n`;
+    await writeFile(envFile, updated, { mode: 0o600 });
+  }
+
   return basic;
 }
 

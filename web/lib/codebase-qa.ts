@@ -41,7 +41,7 @@ export async function askCodebase(projectId: string, question: string, history: 
             const result = await pool.query<CodebaseSource>(
               `WITH query AS (SELECT to_tsquery('english', $2) AS terms), ranked AS (
                  SELECT c.path, c.start_line, c.end_line, c.content,
-                        ts_rank(c.search, query.terms) + ts_rank(setweight(to_tsvector('english', regexp_replace(c.path, '[^[:alnum:]]+', ' ', 'g')), 'A'), query.terms) AS keyword_rank,
+                        coalesce(ts_rank(c.search, query.terms), 0) + coalesce(ts_rank(setweight(to_tsvector('english', regexp_replace(c.path, '[^[:alnum:]]+', ' ', 'g')), 'A'), query.terms), 0) AS keyword_rank,
                         CASE WHEN $3::vector IS NOT NULL AND c.embedding IS NOT NULL AND vector_dims(c.embedding) = vector_dims($3::vector) THEN c.embedding <=> $3::vector END AS distance
                    FROM codebase_chunks c CROSS JOIN query JOIN codebase_indexes i ON i.project_id = c.project_id
                   WHERE c.project_id = $1 AND i.commit_sha = $4 AND i.embedding_model IS NOT DISTINCT FROM $5

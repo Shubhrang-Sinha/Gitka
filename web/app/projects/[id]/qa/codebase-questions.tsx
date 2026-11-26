@@ -35,7 +35,9 @@ export default function CodebaseQuestions({ projectId, repoUrl, isOwner, usesAi 
     <div className="min-w-0 space-y-5"><section aria-label="Repository index" className="flex flex-wrap items-center justify-between gap-3 border-y border-line py-4 text-sm"><div aria-live="polite">
       {index ? <p><strong>{index.branch}</strong> at <code>{index.commit_sha.slice(0, 12)}</code> · {index.file_count} files indexed{state?.current === false ? " · older snapshot" : ""}</p> : <p>No repository snapshot available yet.</p>}
       {index?.limited && <p className="mt-1 text-muted">The index is incomplete because repository limits were reached.</p>}
-      {index && !index.embedding_model && <p className="mt-1 text-muted">Keyword search only; semantic search is not configured.</p>}
+      {index && (index.embedding_model
+        ? <p className="mt-1 text-muted">Semantic and keyword search enabled ({index.embedding_model}).</p>
+        : <p className="mt-1 text-muted">Keyword search only; semantic search is not configured.</p>)}
       {(state?.job?.status === "pending" || state?.job?.status === "running") && <p className="mt-1 text-muted">{state.job.waiting_for_worker ? "Index job is waiting for a worker. Check that the Q&A worker is running." : "Preparing repository index in the background…"}</p>}
       {state?.job?.status === "failed" && state.current === false && <p className="mt-1 text-danger">{state.job.error}</p>}{state?.indexError && <p className="mt-1 text-danger">{state.indexError}</p>}
       </div>{isOwner && <button type="button" className="button" onClick={refreshIndex}>Refresh index</button>}</section>

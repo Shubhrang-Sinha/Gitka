@@ -60,6 +60,7 @@ devplatform/
 | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `db.ts`       | `pool`, the shared Postgres connection pool. Use `pool.query(sql, [values])`.                                              |
 | `forgejo.ts`  | `forgejoFetchAs`, `forgejoFetchTextAs`, and `forgejoPostAs` use a connected user’s OAuth token; service-token helpers remain for demo setup. |
+| `forgejo-onboarding.ts` | `checkForgejoEmail` and `createForgejoUser` verify whether a registering email exists in Forgejo and provision missing accounts before OAuth linking. |
 | `password.ts` | `hashPassword` and `verifyPassword` (bcrypt).                                                                              |
 | `session.ts`  | `createSession`, `getCurrentUser()` (returns the user or `null`), `destroySession`.                                        |
 | `forgejo-pulls.ts` | `listPulls`, `getPull`, `getPullDiff`, and `postReview` access Forgejo pull requests. |
@@ -94,10 +95,11 @@ Migration rules:
 
 ## Authentication
 
-1. `POST /api/auth/register` validates input, hashes the password, inserts a user.
-2. `POST /api/auth/login` checks the password, creates a row in `sessions`, and sets an HttpOnly cookie `session_id` holding a random 32-byte ID.
-3. Anything that needs to know who is calling uses `getCurrentUser()`, which looks the cookie up in `sessions` and returns the user, or `null`.
-4. `POST /api/auth/logout` deletes the session row and clears the cookie.
+1. `POST /api/auth/register` validates input, hashes the password, inserts a user, creates a session, and checks whether the email already exists in Forgejo.
+2. If the email does not exist in Forgejo, `/register` and `/connect-forgejo` prompt the user to create a Forgejo account via `POST /api/auth/forgejo/register` before starting OAuth (`/api/auth/forgejo/start`). If it already exists, `/connect-forgejo` prompts only for OAuth connection.
+3. `POST /api/auth/login` checks the password, creates a row in `sessions`, and sets an HttpOnly cookie `session_id` holding a random 32-byte ID.
+4. Anything that needs to know who is calling uses `getCurrentUser()`, which looks the cookie up in `sessions` and returns the user (if connected to Forgejo), or `null`.
+5. `POST /api/auth/logout` deletes the session row and clears the cookie.
 
 ## Access control
 
@@ -225,13 +227,14 @@ FORGEJO_URL=http://localhost:3001
 # FORGEJO_PUBLIC_URL=https://forgejo.example.test
 FORGEJO_TOKEN=your_forgejo_token_here
 FORGEJO_WRITE_TOKEN=your_forgejo_write_token_here
+FORGEJO_ADMIN_TOKEN=your_forgejo_admin_token_here
 FORGEJO_OAUTH_CLIENT_ID=your_public_oauth_client_id
 FORGEJO_OAUTH_REDIRECT_URI=http://localhost:3000/api/auth/forgejo/callback
 FORGEJO_TOKEN_ENCRYPTION_KEY=your_64_hex_character_key
 FORGEJO_WEBHOOK_SECRET=your_random_secret_here
 OPENROUTER_API_KEY=your_openrouter_key_here
 LLM_MODEL=openrouter/free
-QA_EMBEDDING_MODEL=
+QA_EMBEDDING_MODEL=nvidia/nemotron-3.5-embed-1b:free
 ```
 
 Interactive repository actions use the linked user’s encrypted OAuth credentials. The legacy service tokens are retained for local demo setup and health checks, not user authorization. Keep the encryption key stable and secret.
